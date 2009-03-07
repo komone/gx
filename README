@@ -1,0 +1,11 @@
+EXPERIMENTAL CODE ONLY
+
+Prototyping to see how a GS-Style interface could work with the wxErlang 
+port of wxWidgets.
+
+- You need wxErlang already installed in your library path.
+- There is very limited support for anything at all so far.
+
+See:
+http://apps.sourceforge.net/mediawiki/wxerlang/index.php?title=Main_Page
+http://www.erlang.org/doc/apps/gs/
