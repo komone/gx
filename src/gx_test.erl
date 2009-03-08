@@ -7,42 +7,44 @@
 %-compile(export_all).
 
 start() ->
-	UI = {frame, [{title, "TEST"}, {width, 600}, {height, 400}, {icon, "./priv/wxe.xpm"}], 
+	UI = {gui, [
+	{window, [{title, "TEST"}, {width, 600}, {height, 400}, {icon, "./priv/wxe.xpm"}], 
 	[{menubar, [], [
 		{menu, 
 			[{label, "File"}], 
-			[{menuitem, [{label, "&New"}, {callback, ?wxID_NEW}]},
-			{menuitem, [{label, "&Open"}, {callback, ?wxID_OPEN}]},
+			[{menuitem, [{label, "&New"}, {command, ?wxID_NEW}]},
+			{menuitem, [{label, "&Open"}, {command, ?wxID_OPEN}]},
 			{separator, []},
-			{menuitem, [{label, "E&xit"}, {callback, ?wxID_EXIT}]} 
+			{menuitem, [{label, "E&xit"}, {command, ?wxID_EXIT}]} 
 		]},
 		{menu, [{label, "Help"}], [
-			{menuitem, [{label, "&Contents"}, {callback, ?wxID_HELP_CONTENTS}, {enable, false}]}, 
+			{menuitem, [{label, "&Contents"}, {command, ?wxID_HELP_CONTENTS}, {enable, false}]}, 
 			{separator, []},
-			{menuitem, [{label, "&About...\tF1"}, {callback, ?wxID_ABOUT}]}
+			{menuitem, [{label, "&About...\tF1"}, {command, ?wxID_ABOUT}]}
 		]}
+	]}
 	]},
 %	{toolbar, [], [
 %		{tool, [{label, "New"}, {icon, "./priv/wxe.xpm"}]}
 %	]},
 	{tabs, [], [
-		{editor, [{title, "Editor"}], []}
+		{editor, [{title, "Editor"}, {lexer, "Erlang"}], []}
 	]},
 	{statusbar, [{text, "Ready"}]}
 	]},
 	
-	Frame = gx:create_ui(UI), 
+	Frame = gx:create(UI), 
 	loop(Frame).
 
 %% enum ids... what to do about this?
 loop(Frame) ->
     receive 
   	#wx{event=#wxClose{}} ->
-  	    gx:destroy_ui(Frame);
+  	    gx:destroy(Frame);
 	#wx{id=?wxID_EXIT, event=#wxCommand{type=command_menu_selected}} ->
-	    gx:destroy_ui(Frame);
+	    gx:destroy(Frame);
 	#wx{id=?wxID_ABOUT, event=#wxCommand{type=command_menu_selected}} ->
-	    dialog(?wxID_ABOUT, Frame),
+	    about_dialog(Frame),
 	    loop(Frame);
 	Msg ->
 		io:format("~p~n", [Msg]),
@@ -53,12 +55,8 @@ loop(Frame) ->
     end.
 
 %%
-dialog(?wxID_ABOUT, Frame) ->
-    Str = string:join(["GX Test for Erlang\nExperimental Use Only\n", 
-		       "Steve Davis 2009\n\n",
-		       wx_misc:getOsDescription(), "     \n"], ""),
-	MD = wxMessageDialog:new(Frame, Str,
-		[{style, ?wxOK bor ?wxICON_INFORMATION}, {caption, "About GX Test"}]),
-    wxDialog:showModal(MD),
-    wxDialog:destroy(MD).
-	
+about_dialog(Frame) ->
+    Text =  "GX Test for Erlang\n"
+			"NOTE: Experimental\n"
+			"Steve Davis 2009                \n",
+	gx:alert(Frame, Text, [{title, "About GX Test"}]).

@@ -1,10 +1,9 @@
 %%
 %%
-%%
 -module(gx).
+-author('steve@simulacity.com').
 
 -include_lib("wx/include/wx.hrl").
-
 -compile(export_all).
 
 start() ->
@@ -12,19 +11,27 @@ start() ->
 stop() ->
 	wx:destroy().
 
+load(File) when is_list(File) ->
+	{ok, [GxTerm]} = gxml:load(File),
+	create(GxTerm).
+
 %% trunk
-create_ui({frame, Config, Children}) ->
-	gx:start(),
+create({window, Config, Children}) ->
+	G = gx:start(),
 	wx:batch(fun() -> 
-		Frame = frame(gx:start(), Config),
+		Frame = window(G, Config),
 		create_tree(Frame, Children),
 		wxFrame:sendSizeEvent(Frame),
 		wxWindow:show(Frame),
 		Frame end).
 
-destroy_ui(Frame) ->
+create(Parent, Component, Opts) ->
+	io:format("~p -> ~p ~p~n", [Parent, Component, Opts]),
+	apply(gx, Component, [Parent, Opts]).
+
+destroy(Frame) ->
 	io:format("Destroying ~p~n", [Frame]),
-	wxFrame:destroy(Frame).
+	wxWindow:destroy(Frame).
 	
 %% branch
 create_tree(Parent, [{Component, Opts, Children} | Rest]) ->
@@ -38,10 +45,6 @@ create_tree(Parent, [{Component, Opts} | Rest]) ->
 create_tree(Parent, []) ->
 	Parent.
 
-create(Parent, Component, Opts) ->
-	io:format("~p -> ~p~n", [Parent, Component]),
-	apply(gx, Component, [Parent, Opts]).
-
 get_option(Key, _, [{Key, Value}|_]) ->
 	Value;
 get_option(Key, Default, [_|T]) ->
@@ -50,8 +53,9 @@ get_option(_, Default, []) ->
 	Default.
 
 %% ets lookup here?
-config(_Name, _Opts) ->
-	not_implemented.
+config(Component = {_, _, wxFrame, _}, Opts) ->
+	Show = get_option(map, false, Opts),
+	wxWindow:show(Component, [{show, Show}]).
 
 read(_Name, _Key) ->
 	not_implemented.
@@ -60,7 +64,7 @@ frame(Parent, Opts) ->
 	Title = get_option(title, "Untitled", Opts),
 	X = get_option(width, 400, Opts),
 	Y = get_option(height, 300, Opts),
-	IconFile = get_option(icon, "../priv/wxe.xpm", Opts),
+	IconFile = get_option(icon, "./priv/wxe.xpm", Opts),
 	Frame = wxFrame:new(Parent, -1, Title, [{size, {X, Y}}]),
 	wxFrame:setIcon(Frame, wxIcon:new(IconFile)),
 	wxFrame:connect(Frame, close_window),
@@ -72,7 +76,7 @@ window(Parent, Opts) ->
 	Title = get_option(title, "Untitled", Opts),
 	X = get_option(width, 400, Opts),
 	Y = get_option(height, 300, Opts),
-	IconFile = get_option(icon, "../priv/wxe.xpm", Opts),
+	IconFile = get_option(icon, "./priv/wxe.xpm", Opts),
 	Frame = wxFrame:new(Parent, -1, Title, [{size, {X, Y}}]),
 	wxFrame:setIcon(Frame, wxIcon:new(IconFile)),
 	wxFrame:connect(Frame, close_window),
@@ -93,7 +97,7 @@ menu(Parent, Opts) ->
 menuitem(Parent = {_, _, wxMenu, _}, Opts) ->
 	Label = get_option(label, "", Opts),
 	Enabled = get_option(enable, true, Opts),
-	Callback = get_option(callback, ?wxID_NONE, Opts),
+	Callback = get_option(command, ?wxID_NONE, Opts),
 	Item = wxMenu:append(Parent, Callback, Label),
 	wxMenuItem:enable(Item, [{enable, Enabled}]),
 	Item.
@@ -110,21 +114,37 @@ tool(_Parent = {_, _, wxToolBar, _}, Opts) ->
 %	wxToolBar:addTool(Parent, -1, Label, Icon),
 %	wxToolBar:realize(Parent).
 
+%%
 tabs(Parent, _Opts) ->
 	wxNotebook:new(Parent, -1, []).
 
+%%
 editor(Parent, Opts) ->
 	Title = get_option(title, "Untitled", Opts),
 	Editor = wxStyledTextCtrl:new(Parent),
 	wxNotebook:addPage(Parent, Editor, Title),
 	Editor.
 
-button(_Parent, _Opts) ->
-	not_implemented.
+%%
+button(Parent, Opts) ->
+	Label = get_option(label, "OK", Opts),
+	Button = wxButton:new(Parent, -1, [{label, Label}]),
+	wxButton:connect(Button, command_button_clicked), 
+	Button.
 
+%%
 statusbar(Parent, Opts) ->
 	Child = wxFrame:createStatusBar(Parent,[]),
 	Text = get_option(text, "", Opts),
 	wxFrame:setStatusText(Parent, Text, []),
 	Child.
+
+%%
+alert(Parent, Message, Opts) ->
+	Caption = get_option(title, "", Opts),
+	MD = wxMessageDialog:new(Parent, Message,
+		[{style, ?wxOK bor ?wxICON_INFORMATION}, {caption, Caption}]),
+    wxDialog:showModal(MD),
+    wxDialog:destroy(MD). 
+
 
