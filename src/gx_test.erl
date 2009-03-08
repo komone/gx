@@ -1,7 +1,10 @@
 %%
 %%
 -module(gx_test).
+
 -include_lib("wx/include/wx.hrl").
+%% NOTE: The big target is to remove this dependency in client code like this
+%% and to eliminate the kind of coding style that it causes along the away
 
 -export([start/0]).
 %-compile(export_all).
