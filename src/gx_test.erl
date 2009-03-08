@@ -7,8 +7,8 @@
 %-compile(export_all).
 
 start() ->
-	UI = {gui, [
-	{window, [{title, "TEST"}, {width, 600}, {height, 400}, {icon, "./priv/wxe.xpm"}], 
+	UI = 
+	{window, [{title, "TEST"}, {width, 600}, {height, 400}, {icon, "./rsrc/wxe.xpm"}], 
 	[{menubar, [], [
 		{menu, 
 			[{label, "File"}], 
@@ -22,7 +22,6 @@ start() ->
 			{separator, []},
 			{menuitem, [{label, "&About...\tF1"}, {command, ?wxID_ABOUT}]}
 		]}
-	]}
 	]},
 %	{toolbar, [], [
 %		{tool, [{label, "New"}, {icon, "./priv/wxe.xpm"}]}
