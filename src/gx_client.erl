@@ -12,7 +12,7 @@
 
 start() ->
 	UI = 
-	[{window, [{title, "GX TEST"}, {width, 600}, {height, 400}, {icon, "priv/gx/wxe.xpm"}], 
+	[{window, [{title, "GX TEST"}, {width, 600}, {height, 400}, {icon, "wxe.xpm"}], 
 	[{menubar, [], [
 		{menu, 
 			[{label, "File"}], 
@@ -49,5 +49,5 @@ on_about(Parent) ->
 	gx:alert(Parent, Text, [{title, "About GX Test"}]).
 
 on_message(Message) ->
-	io:format("~p~n", [Message]).
+	io:format("[~p] ~p~n", [self(), Message]).
 

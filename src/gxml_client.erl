@@ -8,7 +8,9 @@
 
 
 start() -> 
-	gx:start(?MODULE, "priv/gx/test.xml"). 
+	start("test.xml"). 
+start(File) ->
+	gx:start(?MODULE, File). 
 
 on_close() ->
 	io:format("CLOSE~n", []).

@@ -6,33 +6,41 @@
 -include_lib("wx/include/wx.hrl").
 -compile(export_all).
 
--define(RESOURCE_PATH, "priv/rsrc").
-
 start() ->
+	%% TODO - For now, just get access to the environment
+	%% for resource loading purposes..
+	case application:load(?MODULE) of 
+	_-> ok
+	end,
 	wx:new(). % minimally
 stop() ->
 	wx:destroy().
 
 %%
 start(Module, UI) ->
-	spawn_link(?MODULE, init, [Module, UI]).
+	gx:start(),
+	case erlang:system_info(smp_support) of 
+	true -> spawn_link(?MODULE, init, [Module, UI]);
+	false -> {error, not_smp}
+	end.
 
 %%
 init(Module, [GxTerm]) when is_tuple(GxTerm) ->
 	init2(Module, gx:create(GxTerm));
 %
 init(Module, File) when is_list(File) ->
-	{ok, [GxTerm]} = gxml:load(File),
+	{ok, Resource} = find_resource(File),
+	{ok, [GxTerm]} = gxml:load(Resource),
 	init2(Module, gx:create(GxTerm)).
 
 %%
 init2(Module, Frame) ->
 	wxFrame:sendSizeEvent(Frame),
 	wxWindow:show(Frame),
-	loop(Frame, Module).
+	loop(Module, Frame).
 
 %%
-loop(Frame, Module) when is_atom(Module) ->
+loop(Module, Frame) when is_atom(Module) ->
     receive 
   	#wx{event=#wxClose{}} ->
   	    gx:destroy(Frame),
@@ -42,13 +50,13 @@ loop(Frame, Module) when is_atom(Module) ->
 		apply(Module, on_exit, []);
 	#wx{id=?wxID_ABOUT, event=#wxCommand{type=command_menu_selected}} ->
 		apply(Module, on_about, [Frame]),
-	    loop(Frame, Module);
+		loop(Module, Frame);
 	Msg ->
 		apply(Module, on_message, [Msg]),
-	    loop(Frame, Module)
+		loop(Module, Frame)
     after 1000 ->
-		% check on externally updated files
-	    loop(Frame, Module)
+		% check on externally updated files?
+		loop(Module, Frame)
     end.
 
 %% trunk
@@ -79,12 +87,64 @@ create_tree(Parent, [{Component, Opts} | Rest]) ->
 create_tree(Parent, []) ->
 	Parent.
 
+%%
 get_option(Key, _, [{Key, Value}|_]) ->
 	Value;
 get_option(Key, Default, [_|T]) ->
 	get_option(Key, Default, T);
 get_option(_, Default, []) ->
 	Default.
+
+%%
+get_icon(Opts) -> 
+	{ok, Icon} = find_resource(get_option(icon, "wxe.xpm", Opts)),
+	Type = icon_type(filename:extension(Icon)),
+	wxIcon:new(Icon, [{type, Type}]).
+%%
+icon_type(".xpm") -> ?wxBITMAP_TYPE_XPM;
+icon_type(".png") -> ?wxBITMAP_TYPE_PNG;
+icon_type(".bmp") -> ?wxBITMAP_TYPE_BMP;
+icon_type(_)      -> ?wxBITMAP_TYPE_INVALID.
+
+%% TODO!!
+% ./<mypath>/<myfile>
+% <myappdir>/<myrsrcpath>/<mypath>/<myfile>
+% <myappdir>/<mypath>/<myfile>
+% <gxapp>/<gxrsrcpath>/<myfile>
+find_resource(File) ->
+	AppPaths = 
+	case application:get_application() of
+	{ok, App} ->
+		LibPath = code:lib_dir(App),
+		AppPath = filename:join(LibPath, File),
+		case application:get_env(resources) of 
+		{ok, Resources} -> 
+			[filename:join([LibPath, Resources, File]), AppPath];
+		undefined -> 
+			[AppPath]
+		end;
+	undefined -> 
+		[]
+	end,
+	GxPaths = 
+	case application:get_env(?MODULE, resources) of
+		{ok, GxResources} ->
+			[filename:join([code:lib_dir(?MODULE), GxResources, File])];
+		undefined -> 
+			[]
+	end,
+	Candidates = lists:append([[filename:absname(File)], AppPaths, GxPaths]),
+	io:format("RESOURCE ~p~n", [Candidates]),
+	find_file(Candidates).
+
+find_file([H|T]) ->
+	case filelib:is_regular(H) of
+	true -> {ok, filename:absname(H)};
+	false -> find_file(T)
+	end;
+find_file([]) ->
+	{error, enoent}.
+
 
 %% ets lookup here?
 config(Component = {_, _, wxFrame, _}, Opts) ->
@@ -94,6 +154,10 @@ config(Component = {_, _, wxFrame, _}, Opts) ->
 %%
 read(_Name, _Key) ->
 	not_implemented.
+
+%%
+%% GX/WX Components
+%%
 
 %%
 frame(Parent, Opts) ->
@@ -186,12 +250,3 @@ alert(Parent, Message, Opts) ->
     wxDialog:showModal(MD),
     wxDialog:destroy(MD). 
 
-%%
-get_icon(Opts) -> 
-	Icon = get_option(icon, "priv/rsrc/wxe.xpm", Opts),
-	wxIcon:new(Icon, [{type, icontype(filename:extension(Icon))}]).
-%%
-icontype(".xpm") -> ?wxBITMAP_TYPE_XPM;
-icontype(".bmp") -> ?wxBITMAP_TYPE_BMP;
-icontype(".png") -> ?wxBITMAP_TYPE_PNG;
-icontype(_)      -> ?wxBITMAP_TYPE_INVALID.
