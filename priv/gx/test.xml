@@ -10,7 +10,7 @@
 				<menuitem label="&amp;New" command="5002"/>
 				<menuitem label="&amp;Open" command="5000"/>
 				<separator />
-				<menuitem label="E&amp;xit" command="5006"/>
+				<menuitem label="&amp;Quit" command="5006"/>
 			</menu>
 			<menu id="help" label="Help">
 				<menuitem label="&amp;Contents" enable="false" command="5015"/>
@@ -22,8 +22,8 @@
 			<tool id="new" label="New" icon="wxe.xpm" command="5002"/>
 		</toolbar-->
 		<tabs id="tabs">
-			<editor id="stc" title="Editor" lexer="Erlang"/>
-			<editor id="stc" title="Editor2" lexer="Erlang"/>
+			<editor id="stc1" title="Editor" lexer="Erlang"/>
+			<editor id="stc2" title="Editor2" lexer="Erlang"/>
 		</tabs>
 		<statusbar text="Ready"/>
 	</window>

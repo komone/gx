@@ -1,29 +1,23 @@
+%%
 -module(ex1).
 
--copyright('Copyright (c) 1991-97 Ericsson Telecom AB').
--vsn('$Revision: /main/release/2 $ ').
--include_lib("wx/include/wx.hrl").
+%% GS Reference: http://www.erlang.org/doc/apps/gs/gs_chapter2.html#2.2
 
--export([init/0]).
+-export([init/0, on_message/1, on_close/0]).
 
+%% Experimental!!
+%% e.g. callback names are currently hard coded in gx...
 init() -> 
-    G = gx:start(),
-    %% the parent of a top-level window is the gs server
-    Win = gx:create(G, window, [{width, 200}, {height, 100}]),
-    _Butt = gx:create(Win, button, [{label, "Press Me"}]),
-    gx:config(Win, [{map, true}]),
-    loop(Win). 
+	UI = 
+	[{
+		window, [{width, 200}, {height, 100}], [{
+			button, [{label, "Press Me"}], []
+		}]
+	}],
+	gx:start(?MODULE, UI).
+	
+on_message(_Message) ->
+	io:format("Hello There~n", []).
 
-loop(Win) ->
-    receive
-  	#wx{event=#wxClose{}} ->
-  	    gx:destroy(Win);
-	#wx{id=?wxID_EXIT, event=#wxCommand{type=command_menu_selected}} ->
-	    gx:destroy(Win);
-	{gs, _Butt, click, _Data, _Args} ->
-		io:format("Hello There~n",[]),
-		loop(Win);
-	Msg -> 
-		io:format("~p~n",[Msg]),
-		loop(Win)
-    end.
+on_close() ->
+	closed.

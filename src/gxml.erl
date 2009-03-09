@@ -5,7 +5,6 @@
 
 -include_lib("xmerl/include/xmerl.hrl").
 -export([load/1]).
--compile(export_all).
 
 %% Loads a gxml file and returns it as a gx term
 % NOTE: this returns a list as you may wish to use 
@@ -43,7 +42,7 @@ convert([_|T], Acc) ->
 convert([], Acc) ->
 	lists:reverse(Acc).
 
-% consider autoconvert of integers and boolean values?
+%% convert booleans, integers (and later do atoms too)
 get_value(Name, "true") -> {Name, true};
 get_value(Name, "false") -> {Name, false};
 get_value(Name, Value) when is_list(Value) -> 
