@@ -4,11 +4,16 @@ Prototyping to see how a GS-Style interface could work with the wxErlang
 port of wxWidgets.
 
 - You need wxErlang already installed in your library path.
+- You must run the VM with smp enabled (and also use werl on Windows)
 - There is very limited support for anything at all so far.
 
 - Compile the src and then try out using
+
 gx_client:start() % example of using a term to crate the UI
 gxml_client:start() % example of using XML to create the UI
+
+The gx_client uses either a term file or an inline UI definition
+The gxml_client uses an external xml definition (see: priv/gx/test.xml)
 
 The modules use resources from priv/gx
 

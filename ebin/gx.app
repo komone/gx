@@ -3,9 +3,9 @@
   {vsn, "0.1"},
   {modules, [
   	gx,
-  	gxml,
-	gx_client
+  	gxml
   ]},
+  % no mod definition for now
   {registered, []},
   {env, [
   	{resources, "priv/gx"}

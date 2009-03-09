@@ -3,7 +3,7 @@
 -module(gxml_client).
 -author('steve@simulacity.com').
 
--export([start/0]).
+-export([start/1]).
 -compile(export_all).
 
 
