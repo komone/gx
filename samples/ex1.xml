@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<gxml>
+	<window width="200" height="100">
+		<button label="Press Me"/>
+	</window>
+</gxml>
