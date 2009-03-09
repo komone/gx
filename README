@@ -9,7 +9,7 @@ port of wxWidgets.
 
 - Compile the src and then try out using
 
-gx_client:start() % example of using a term to crate the UI
+gx_client:start() % example of using a term to create the UI
 gxml_client:start() % example of using XML to create the UI
 
 The gx_client uses either a term file or an inline UI definition
