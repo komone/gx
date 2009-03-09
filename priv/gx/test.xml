@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <gxml>
 	<window id="win" 
-			title="TEST" 
-			icon="rsrc/wxe.xpm" 
+			title="GXML TEST" 
+			icon="priv/gx/feed.png" 
 			width="600" 
 			height="400">
 		<menubar id="menus">
@@ -19,7 +19,7 @@
 			</menu>
 		</menubar>
 		<!--toolbar>
-			<tool id="new" label="New" icon="./rsrc/wxe.xpm" command="5002"/>
+			<tool id="new" label="New" icon="priv/gx/wxe.xpm" command="5002"/>
 		</toolbar-->
 		<tabs id="tabs">
 			<editor id="stc" title="Editor" lexer="Erlang"/>
