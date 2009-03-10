@@ -1,3 +1,4 @@
 *.dump
 *.beam
+*.out
 .DS_Store

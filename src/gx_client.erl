@@ -17,7 +17,7 @@
 % Internal definition
 start() ->
 	UI = 
-	[{window, [{title, "GX TEST"}, {width, 600}, {height, 400}, {icon, "wxe.xpm"}], 
+	[{window, [{id, win}, {title, "GX TEST"}, {width, 600}, {height, 400}, {icon, "wxe.xpm"}], 
 	[{menubar, [], [
 		{menu, 
 			[{label, "File"}], 
@@ -64,5 +64,5 @@ on_about(Parent) ->
 
 %%
 on_message(Message) ->
-	io:format("[~p] ~p~n", [self(), Message]).
+	io:format("[~p SIZE ~p] ~p~n", [self(), gx:read(win, getSize), Message]).
 
