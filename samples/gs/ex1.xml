@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<gx>
+	<window id="ex1" width="200" height="100">
+		<button id="butt" label="Press Me" onclick="clicked" />
+	</window>
+</gx>

@@ -1,34 +1,18 @@
-%% GS Events
-%% 13 types
-click
-doubleclick
-configure
-enter
-leave
-motion
-buttonpress
-buttonrelease
-focus
-destroy
-keypress
-keyrelease
-undefined
+-module(gx_events).
 
-%% WX Events
-%% see: wxEvtHandler::wxEventType
-%% 197 types
-calendar_day_changed 
-calendar_doubleclicked 
-calendar_month_changed 
+command_button_clicked
+calendar_day_changed
+calendar_doubleclicked
+calendar_month_changed) -> changed;
 calendar_sel_changed 
 calendar_weekday_clicked 
 calendar_year_changed 
-char 
-char_hook 
-close_window 
-command_button_clicked 
-command_checkbox_clicked 
-command_choice_selected 
+'char'
+char_hook
+close_window
+command_button_clicked
+command_checkbox_clicked
+command_choice_selected
 command_colourpicker_changed 
 command_combobox_selected 
 command_dirpicker_changed 
@@ -214,70 +198,3 @@ stc_userlistselection
 stc_zoom
 sys_colour_changed
 update_ui
-
-
-%% HTML 4.1 Events
-%% 17 types
-onblur
-onchange
-onclick 
-ondblclick
-onfocus
-onkeydown
-onkeypress
-onkeyup
-onload
-onmousedown
-onmousemove
-onmouseout
-onmouseover
-onmouseup
-onreset
-onselect
-onsubmit
-onunload
-
-%% HTML 5.0
-%% 37 types
-onabort
-onbeforeunload
-onblur
-onchange
-onclick
-oncontextmenu
-ondblclick
-ondrag
-ondragend
-ondragenter
-ondragleave
-ondragover
-ondragstart
-ondrop
-onerror
-onfocus
-onhashchange
-onkeydown
-onkeypress
-onkeyup
-onload
-onmessage
-onmousedown
-onmousemove
-onmouseout
-onmouseover
-onmouseup
-onmousewheel
-onoffline
-ononline
-onpopstate
-onresize
-onscroll
-onselect
-onstorage
-onsubmit
-onunload
-
-DOM = HTML + ext + 10 = 32
-XUL/FF = DOM + 23 = 55
-MSIE = DOM + 39 = 71
-XUI

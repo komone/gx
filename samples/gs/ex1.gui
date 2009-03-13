@@ -1,0 +1,2 @@
+{window,[{id,"ex1"},{width,200},{height,100}],
+        [{button,[{id,"butt"},{label,"Press Me"},{ondblclick,"clicked"}],[]}]}.

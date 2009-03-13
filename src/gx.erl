@@ -1,305 +1,307 @@
 %%
 %%
+%%
 -module(gx).
+-version("alpha").
 -author('steve@simulacity.com').
 
+-include("../include/gx.hrl").
+-include("gx_registry.hrl").
 -include_lib("wx/include/wx.hrl").
+
 -compile(export_all).
 
--export([start/0, start/2, stop/0, create/1]).
--export([config/3, read/2]).
--export([frame/2, window/2,
-	menubar/2, menu/2, menuitem/2, toolbar/2, tool/2, 
-	button/2, separator/2,
-	statusbar/2, tabs/2, editor/2, alert/3]). % more...
+-export([start/2, create/1, create/3, destroy/2, get/2, set/3]).
+-export([ % Components
+	frame/2, window/2, % dialog/2,
+	menubar/2, menu/2, menuitem/2, separator/2,
+	toolbar/2, tool/2, button/2, statusbar/2, 
+	tabs/2, editor/2, alert/3 % many more...
+]). 
 
--record(gx, {id, type, event, data}).
 
 %%
+%% Core GUI startup and event loop
+%%
+
+%% Spawn a GUI process instance
 start(Module, UI) ->
-	gx:start(),
+	gx_registry:start(),
 	spawn_link(?MODULE, init, [Module, UI]).
 
-start() ->
-	case erlang:system_info(smp_support) of 
-	true -> 
-		Root = wx:new(), % minimally
-		
-		%% TODO - For now, just get access to the environment
-		%% for resource loading purposes..
-		application:load(?MODULE),
-		
-		case ets:info(gxdb) of 
-		undefined ->
-			ets:new(gxdb, [set, named_table, public]),
-			ets:insert(gxdb, {{self(), root}, Root});
-		_ -> ok
-		end,
-		Root;
-	false ->
-		{error, no_smp}
-	end.
-	
-stop() ->
-	case ets:info(gxdb) of
-	undefined -> ok;
-	_ -> 
-		ets:delete(gxdb)
-	end,
-	wx:destroy().
-
-%%
-init(Module, [GxTerm]) when is_tuple(GxTerm) ->
+%% if we have a term definition, load the UI...
+init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
+	%% TODO: Keep this reminder until more than a single UI can be created here!
+	io:format("[UNPARSED] ~p~n", [T]), 
 	Frame = gx:create(GxTerm),
 	wxFrame:sendSizeEvent(Frame),
 	wxWindow:show(Frame),
-	io:format("[GXDB  ] ~p~n", [ets:tab2list(gxdb)]),
 	loop(Module, Frame);
-%
+% ...or else load the xml file definition
 init(Module, File) when is_list(File) ->
-	{ok, Resource} = find_resource(File),
+	{ok, Resource} = gx_registry:find_resource(File),
 	{ok, Term} = gxml:load(Resource),
 	init(Module, Term).
 
-%% TODO: remove hard coded callback names
+%% The main event loop for the GUI process instance
 loop(Module, Frame) when is_atom(Module) ->
     receive 
-  	#wx{event=#wxClose{}} ->
-  	    gx:destroy(Frame),
-		apply(Module, on_close, []);
-	#wx{id=?wxID_EXIT, event=#wxCommand{type=command_menu_selected}} ->
-	    gx:destroy(Frame),
-		apply(Module, on_exit, []);
-	#wx{id=?wxID_ABOUT, event=#wxCommand{type=command_menu_selected}} ->
-		apply(Module, on_about, [Frame]),
-		loop(Module, Frame);
+	%% TODO: what if the window doesn't have an id/name??
+	Evt = #wx{event=#wxClose{}, userData={GxName, _}} ->
+		Function = get_handler(Module, Evt),
+		Module:Function(Frame, Evt),
+  	    destroy(Frame, GxName);
 	Evt = #wx{} ->
-		Cmd = Evt#wx.event,
-		% {gs, IdOrName, EventType, Data, Args}
-		Msg = #gx{id=Evt#wx.userData, type=Cmd#wxCommand.type, event=Evt#wx.id, data=[]},
-		apply(Module, on_message, [Msg]),
+		%% TODO: this is a hack -- improve it!
+		Name = case Evt#wx.userData of 
+		{GxName, _GxHandler} -> GxName;
+		_ -> undefined
+		end,
+		Function = get_handler(Module, Evt),
+		Msg = #gx{id=Name, type=Function, event=Evt#wx.id, data=[Evt]},
+		Module:Function(Frame, Msg),
+		loop(Module, Frame);
+	Evt ->
+		io:format("INVALID EVENT ~p~n", [Evt]),
 		loop(Module, Frame)
     after 1000 ->
 		% check on externally updated files?
 		loop(Module, Frame)
     end.
 
-%%
-register(undefined, _) ->
-	true;
-register(Name, Component) when is_atom(Name) ->
-	case ets:member(gxdb, {self(), Name}) of 
-	true -> {error, id_in_use};
-	false -> ets:insert_new(gxdb, {{self(), Name}, Component})
-	end.
+% Get a valid handler function for an event, if one is available
+% It would probably be better to do all this at creation time, if possible
+get_handler(Module, #wx{userData={_GxName, GxHandler}}) ->
+	Exports = Module:module_info(exports),
+	case lists:member({GxHandler, 2}, Exports) of 
+	true -> 
+		GxHandler;
+	false -> 
+		case lists:member({on_message, 2}, Exports) of
+		true -> on_message;
+		false -> {error, no_callback_handler}
+		end
+	end;
+get_handler(Module, E = #wx{id=Command}) when is_integer(Command) ->
+	GxHandler = gx_registry:lookup_command_handler(Command),
+	get_handler(Module, E#wx{userData={undefined, GxHandler}}).
+
+%
+% Core Utility Functions
+% The following functions are to extract all the generic code from the
+% component creators defined later.
+%
+
+%% Simple redirection: used to reduce code complexity inside component functions
+get_atom(Key, Opts)             -> gx_registry:get_atom(Key, undefined, Opts).
+get_atom(Key, Default, Opts)    -> gx_registry:get_atom(Key, Default, Opts).
+get_boolean(Key, Default, Opts) -> gx_registry:get_boolean(Key, Default, Opts).
+get_integer(Key, Default, Opts) -> gx_registry:get_integer(Key, Default, Opts).
+get_string(Key, Opts)           -> gx_registry:get_string(Key, "", Opts).
+get_string(Key, Default, Opts)  -> gx_registry:get_string(Key, Default, Opts).
+get_resource(icon, Opts)        -> gx_registry:get_resource(icon, Opts).
+get_option(Key, Opts)           -> gx_registry:get_option(Key, undefined, Opts).
+get_option(Key, Default, Opts)  -> gx_registry:get_option(Key, Default, Opts).
+
+%% Extract valid candidate callbacks from the component definition
+get_callbacks(Opts) ->
+	Convert = fun(Name) ->
+		case is_atom(Name) of
+		true -> Name;
+		false -> list_to_atom(Name)
+		end
+	end,
+	[{X, Convert(Y)} || {X, Y} <- Opts, is_atom(X), lists:member(X, ?GX_EVENTS)].
+
+%% Register a GX component
+component(GxName, Component) ->
+	gx_registry:add_component(GxName, Component).
+
+%% Register a GX command and the user-defined handler
+command(GxName, {_WxType, WxMap}, GxHandlers) ->
+	[GxHandler] = map_callbacks(WxMap, [GxHandlers], []),
+	gx_registry:add_command_handler(GxName, GxHandler).
 	
-%%
-lookup(Name) ->
-	Process = self(),
-	case ets:lookup(gxdb, {Process, Name}) of 
-	[{{Process, Name}, Component}] -> Component;
+%% Register/enable all (valid) user defined event handlers
+events(GxName, Component, [{WxType, WxMap}|T], GxHandlers) ->
+	HandlerMap = map_callbacks(WxMap, GxHandlers, []),
+	%io:format("[CONNECT ] '~p' [~p] ~p~n", [GxName, WxType, HandlerMap]),
+	connect_callbacks(WxType, GxName, Component, HandlerMap),
+	%io:format("~n", []),
+	events(GxName, Component, T, GxHandlers);
+events(_, Component, [], _) -> 
+	Component.
+
+%% Associates the WX event directly with the user-defined handler
+map_callbacks([WxMap|T], GxHandlers, Acc) ->
+	Acc1 = 
+		case map_callback(WxMap, GxHandlers) of 
+		undefined -> Acc;
+		Callback -> [Callback|Acc]
+		end,	
+	map_callbacks(T, GxHandlers, Acc1);
+map_callbacks([], _, Acc) ->
+	Acc.
+	
+map_callback({GxEvent, WxEvent}, [{GxEvent, GxHandler}|_]) ->
+	{WxEvent, GxHandler};
+map_callback(WxMap, [_|T]) ->
+	map_callback(WxMap, T);
+map_callback(_, []) ->
+	undefined.
+
+%% Finally, wire the callbacks from the WX component to the WXE server 
+connect_callbacks(WxType, GxName, Component, [{WxEvent, GxHandler}|T]) ->
+	%io:format("           '~p' ~p->~p~n", [GxName, WxEvent, UserHandler]),
+	WxType:connect(Component, WxEvent, [{userData, {GxName, GxHandler}}]),
+	connect_callbacks(WxType, GxName, Component, T);
+connect_callbacks(_, _, _, []) -> 
+	ok.
+
+
+%
+% Generic property getter/setter
+%
+%% TODO: MAP GX properties to the WX function calls
+
+%% TODO: Property is currently directly(!!!) applied as the function name
+get(GxName, Property) ->
+	Component = lookup(GxName),
+	case Component of 
+	{_, _, Type, _} -> Type:Property(Component);
 	_ -> undefined
 	end.
 
-%% ets lookup here?
-config(Name, Action, Args) ->
-	Component = lookup(Name),
+%%
+set(GxName, Action, Args) ->
+	%% TODO: Action is currently directly(!!!) applied as the function name
+	Component = lookup(GxName),
 	case Component of 
 	{_, _, Type, _} -> apply(Type, Action, [Component|Args]);
 	_ -> undefined
 	end.
 	
 %%
-read(Name, Property) ->
-	Component = lookup(Name),
-	case Component of 
-	{_, _, Type, _} -> apply(Type, Property, [Component]);
-	_ -> undefined
-	end.
+lookup(GxName) ->
+	gx_registry:lookup_component(GxName).
+
+%
+% The Generic GX create/destroy functions
+%
 
 %% trunk
 create({window, Config, Children}) ->
-	G = gx:start(),
+	GX = gx_registry:start(),
 	wx:batch(fun() -> 
-		Frame = window(G, Config),
+		%io:format("[CREATE  ] ~p ~p ~p~n", [window, GX, Config]),
+		Frame = window(GX, Config),
 		create_tree(Frame, Children),
 		Frame end).
 
-create(Parent, Component, Opts) ->
-	io:format("[CREATE] ~p~n         ~p ~p~n", [Parent, Component, Opts]),
-	apply(gx, Component, [Parent, Opts]).
+create(Component, Parent, Opts) ->
+	%io:format("[CREATE  ] ~p ~p ~p~n", [Component, Parent, Opts]),
+	gx:Component(Parent, Opts).
 
-destroy(Frame) ->
-	Process = self(),
-	Delete = fun(X, Acc) ->
-		case X of 
-		{{Process, _}, _} -> ets:delete_object(gxdb, X), Acc + 1;
-		_ -> Acc
-		end
-	end,
-	Deleted = ets:foldr(Delete, 0, gxdb),
-	io:format("[DESTRY]~p + ~p Refs~n", [Frame, Deleted]),
-	wxWindow:destroy(Frame).
-	
 %% branch
 create_tree(Parent, [{Component, Opts, Children} | Rest]) ->
-	P = create(Parent, Component, Opts),
+	P = create(Component, Parent, Opts),
 	create_tree(P, Children),
 	create_tree(Parent, Rest);
 %% leaf
 create_tree(Parent, [{Component, Opts} | Rest]) ->
-	create(Parent, Component, Opts),
+	create(Component, Parent, Opts),
 	create_tree(Parent, Rest);
 create_tree(Parent, []) ->
 	Parent.
 
 %%
-
-get_option(id, _, [{id, Value}|_]) when is_list(Value) ->
-	list_to_atom(Value);
-get_option(Key, _, [{Key, Value}|_]) ->
-	Value;
-get_option(Key, Default, [_|T]) ->
-	get_option(Key, Default, T);
-get_option(_, Default, []) ->
-	Default.
-
-%%
-get_icon(Opts) -> 
-	{ok, Icon} = find_resource(get_option(icon, "wxe.xpm", Opts)),
-	Type = icon_type(filename:extension(Icon)),
-	wxIcon:new(Icon, [{type, Type}]).
-%%
-icon_type(".xpm") -> ?wxBITMAP_TYPE_XPM;
-icon_type(".png") -> ?wxBITMAP_TYPE_PNG;
-icon_type(".bmp") -> ?wxBITMAP_TYPE_BMP;
-icon_type(_)      -> ?wxBITMAP_TYPE_INVALID.
-
-%% TODO!!
-% ./<mypath>/<myfile>
-% <myappdir>/<myrsrcpath>/<mypath>/<myfile>
-% <myappdir>/<mypath>/<myfile>
-% <gxapp>/<gxrsrcpath>/<myfile>
-find_resource(File) ->
-	AppPaths = 
-	case application:get_application() of
-	{ok, App} ->
-		LibPath = code:lib_dir(App),
-		AppPath = filename:join(LibPath, File),
-		case application:get_env(resources) of 
-		{ok, Resources} -> 
-			[filename:join([LibPath, Resources, File]), AppPath];
-		undefined -> 
-			[AppPath]
-		end;
-	undefined -> 
-		[]
-	end,
-	GxPaths = 
-	case application:get_env(?MODULE, resources) of
-	{ok, GxResources} ->
-		[filename:join([code:lib_dir(?MODULE), GxResources, File])];
-	undefined -> 
-		[]
-	end,
-	Candidates = lists:append([[filename:absname(File)], AppPaths, GxPaths]),
-	io:format("[RSRC  ] ~p~n", [Candidates]),
-	find_file(Candidates).
-
-find_file([H|T]) ->
-	case filelib:is_regular(H) of
-	true -> {ok, filename:absname(H)};
-	false -> find_file(T)
-	end;
-find_file([]) ->
-	{error, enoent}.
-
-%% GS Events are:
-event_type("click") 		-> click;
-event_type("doubleclick") 	-> doubleclick;
-event_type("configure") 	-> configure;
-event_type("enter") 		-> enter;
-event_type("leave") 		-> leave;
-event_type("motion") 		-> motion;
-event_type("buttonpress") 	-> buttonpress;
-event_type("buttonrelease") -> buttonrelease;
-event_type("focus") 		-> focus;
-event_type("destroy") 		-> destroy;
-event_type("keypress") 		-> keypress;
-event_type("keyrelease") 	-> keyrelease;
-event_type(_)		 		-> undefined.
-
+destroy(Component, GxName) when is_tuple(Component), is_atom(GxName) ->
+	gx_registry:remove_component(Component, GxName).
+	
 %%
 %% GX/WX Components
 %%
 
-%%
+%% NOT YET USED
 frame(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Title = get_option(title, "Untitled", Opts),
-	X = get_option(width, 400, Opts),
-	Y = get_option(height, 300, Opts),
+	Title = get_string(title, "Untitled", Opts),
+	X = get_integer(width, 400, Opts),
+	Y = get_integer(height, 300, Opts),
 	Frame = wxFrame:new(Parent, -1, Title, [{size, {X, Y}}]),
-	gx:register(Name, Frame),
-	wxFrame:setIcon(Frame, get_icon(Opts)),
-	wxFrame:connect(Frame, close_window),
-	wxFrame:connect(Frame, command_menu_selected),
-	Frame.
+	Icon = get_resource(icon, Opts),
+	wxFrame:setIcon(Frame, Icon),
+	GxName = get_atom(id, Opts),
+	%% NOTE: Add inherited event mapping macros too
+	gx:events(GxName, Frame, [?GX_WINDOW_EVENTS], get_callbacks(Opts)),
+	gx:component(GxName, Frame).
 
 %% review what "window" really means
 %% Opts = [{title, String}|{width, Integer}|{height, Integer}|{icon, Path}]
 window(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Title = get_option(title, "Untitled", Opts),
-	X = get_option(width, 400, Opts),
-	Y = get_option(height, 300, Opts),
+	Title = get_string(title, "Untitled", Opts),
+	X = get_integer(width, 400, Opts),
+	Y = get_integer(height, 300, Opts),	
 	Frame = wxFrame:new(Parent, -1, Title, [{size, {X, Y}}]),
-	gx:register(Name, Frame),
-	wxFrame:setIcon(Frame, get_icon(Opts)),
-	wxFrame:connect(Frame, close_window, [{userData, Name}]),
-	wxFrame:connect(Frame, command_menu_selected, [{userData, Name}]), 
-	Frame.
+	Icon = get_resource(icon, Opts),
+	wxFrame:setIcon(Frame, Icon),
+	GxName = get_atom(id, Opts),
+	Callbacks = get_callbacks(Opts),
+	gx:events(GxName, Frame, [?GX_WINDOW_EVENTS], Callbacks),
+	gx:component(GxName, Frame).
 
-menubar(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
+panel(Parent, Opts) ->
+	Name = get_atom(id, Opts),
+	Panel = wxPanel:new(Parent),
+	gx:component(Name, Panel).
+
+menubar(Parent = {_, _, wxFrame, _}, Opts) ->
+	Name = get_atom(id, Opts),
     MenuBar = wxMenuBar:new(),
-	gx:register(Name, MenuBar),
 	wxFrame:setMenuBar(Parent, MenuBar),
-	MenuBar.
+    wxFrame:connect(Parent, command_menu_selected),
+	gx:component(Name, MenuBar).
 
 %% Opts = [{label, String}]
 menu(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Label = get_option(label, "", Opts),
+	Name = get_atom(id, Opts),
+	Label = get_string(label, "", Opts),
 	Menu = wxMenu:new(),
-	gx:register(Name, Menu),
-	wxMenuBar:append(Parent, Menu, Label),
-	Menu.
+	wxMenuBar:append(Parent, Menu, Label),	
+	gx:component(Name, Menu).
 	
 %% Opts = [{label, String} | {enable, Bool} | {command, Integer}]
-menuitem(Parent = {_, _, wxMenu, _}, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Label = get_option(label, "", Opts),
-	Enabled = get_option(enable, true, Opts),
-	Callback = get_option(command, ?wxID_NONE, Opts),
-	Item = wxMenu:append(Parent, Callback, Label),
-	gx:register(Name, Item),
+menuitem(Parent = {_, _, wxMenu, _}, Opts) -> 
+	GxName = get_atom(id, Opts),
+	Label = get_string(label, Opts),
+	Type = get_atom(type, normal, Opts),
+	[Callback|_] = get_callbacks(Opts),
+	%% TODO: can ignore multiple (but illegal) callbacks here... is thsi VALID???
+	Command = gx:command(GxName, ?GX_MENU_COMMAND, Callback), 
+	Item = case Type of 
+	radio    -> wxMenu:appendRadioItem(Parent, Command, Label);
+	checkbox -> wxMenu:appendCheckItem(Parent,  Command, Label);
+	normal   -> wxMenu:append(Parent, Command, Label);
+	_        -> {error, invalid_menu_item}
+	end,
+
+	_Checked = get_boolean(checked, false, Opts),
+%	wxMenuItem:check(Item, [{check, Checked}]),
+	Enabled = get_boolean(enable, true, Opts),
 	wxMenuItem:enable(Item, [{enable, Enabled}]),
-	Item.
+	gx:component(GxName, Item).
 	
 separator(Parent = {_, _, wxMenu, _}, _Opts) ->
 	wxMenu:appendSeparator(Parent).
 	
 toolbar(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
+	Name = get_atom(id, Opts),
 	ToolBar = wxFrame:createToolBar(Parent, []),
-	gx:register(Name, ToolBar),
-	ToolBar.
+	gx:component(Name, ToolBar).
 
 %% Opts = [{label, String} | {icon, Path}]
 tool(_Parent = {_, _, wxToolBar, _}, Opts) ->
-	_Label = get_option(label, "", Opts),
-	_Icon = get_icon(Opts).
+	_Label = get_string(label, "", Opts),
+	_Icon = get_resource(icon, Opts).
 %% NOTE: doesn't work - need to understand more about wx realize cpp call
 %	wxToolBar:addTool(Parent, -1, Label, Icon),
 %	wxToolBar:realize(Parent).
@@ -310,38 +312,48 @@ tabs(Parent, _Opts) ->
 
 %% Opts = [{title, String}]
 editor(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Title = get_option(title, "Untitled", Opts),
+	Name = get_atom(id, Opts),
+%	Title = get_option(title, "Untitled", Opts),
 	Editor = wxStyledTextCtrl:new(Parent),
-	gx:register(Name, Editor),
-	wxNotebook:addPage(Parent, Editor, Title),
+	gx:component(Name, Editor),
+%	wxNotebook:addPage(Parent, Editor, Title),
 	Editor.
 
 %% Opts = [{label, String}]
 button(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Label = get_option(label, "OK", Opts),
+	Label = get_string(label, "OK", Opts),
 	Button = wxButton:new(Parent, -1, [{label, Label}]),
-	gx:register(Name, Button),
-	wxButton:connect(Button, command_button_clicked), 
-	Button.
+	GxName = get_atom(id, Opts),
+	Callbacks = get_callbacks(Opts),
+	gx:events(GxName, Button, [?GX_BUTTON_EVENTS], Callbacks),
+	gx:component(GxName, Button).
 
 %% Opts = [{text, String}]
 statusbar(Parent, Opts) ->
-	Name = get_option(id, undefined, Opts),
+	Name = get_atom(id, Opts),
 	StatusBar = wxFrame:createStatusBar(Parent,[]),
-	gx:register(Name, StatusBar),
+	gx:component(Name, StatusBar),
 	Text = get_option(text, "", Opts),
 	wxFrame:setStatusText(Parent, Text, []),
 	StatusBar.
 
 %%
 alert(Parent, Message, Opts) ->
-	Name = get_option(id, undefined, Opts),
-	Caption = get_option(title, "", Opts),
-	MD = wxMessageDialog:new(Parent, Message,
+	Name = get_atom(id, Opts),
+	Caption = get_string(title, "", Opts),
+	Dialog = wxMessageDialog:new(Parent, Message,
 		[{style, ?wxOK bor ?wxICON_INFORMATION}, {caption, Caption}]),
-	gx:register(Name, MD),		
-    wxDialog:showModal(MD),
-    wxDialog:destroy(MD). 
+	gx:component(Name, Dialog),		
+	wxDialog:centreOnParent(Dialog),
+    wxDialog:showModal(Dialog),
+    wxDialog:destroy(Dialog). 
 
+%%
+filedialog(Parent, Opts) ->
+	Name = get_atom(id, Opts),
+	FileDialog = wxFileDialog:new(Parent),
+	gx:component(Name, FileDialog),
+    wxDialog:showModal(FileDialog),
+	Filename = wxFileDialog:getFilename(FileDialog),
+	wxFileDialog:destroy(FileDialog),
+	Filename.

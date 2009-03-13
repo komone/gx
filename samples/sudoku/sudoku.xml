@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<!-- WEIRD MENU BUG - wxChecked error vs. all first wxMenuItems are bold -->
+<gx>
+	<window id="win" 
+			title="Sudoku"
+			icon="feed.png"
+			width="400"
+			height="400"
+			onload="init_game"
+			onunload="on_close">
+		<menubar>
+			<menu id="file" label="File">
+				<menuitem label="New Game" onselect="new" />
+				<menuitem label="Open Game" onselect="open" />
+				<menuitem label="Save Game" onselect="save" />
+				<separator/>
+				<menuitem label="Print..." onselect="print"/>
+				<menuitem label="Print Setup" onselect="print_setup"/>
+				<menuitem label="Print Preview" onselect="print_preview"/>
+				<separator/>
+				<menuitem label="Quit Game" onselect="on_exit"/>
+			</menu>
+			<menu id="options" label="Options">
+				<menuitem id="trivial" type="radio" label="Level: Trivial" onselect="set_trivial"/>
+				<menuitem id="easy" type="radio" label="Level: Easy" onselect="set_easy"/>
+				<menuitem id="normal" type="radio" label="Level: Normal" onselect="set_normal" selected="true" />
+				<menuitem id="hard" type="radio" label="Level: Hard" onselect="set_hard"/>
+				<menuitem id="hardest" type="radio" label="Level: Hardest" onselect="set_hardest"/>
+				<separator/>
+				<menuitem id="errors" label="Show Errors" type="checkbox" onselect="show_errors" selected="true" />
+			</menu>
+			<menu id="help" label="Help">
+				<menuitem label="Rules" onselect="show_rules"/>
+				<menuitem label="About" onselect="aboutbox"/>
+			</menu>
+		</menubar>
+		<panel id="tools"
+			orientation="horizontal|vertical"
+			scrolling="vertical|horizontal|both|none">
+			<button id="new_btn" label="New Game" 
+				align="left" 
+				fill="true"
+				border="simple|single|double|raised|sunken|themed|none"
+				padding="5|5,5|5,5,5,5"
+				onclick="new" />
+				<!-- align="fill" or fill="true" fill="true|false|constrain" ??? -->
+			<button label="Empty Board" onclick="empty" />
+			<button label="Clear" onclick="clear" />
+			<button label="Hint" onclick="hint" />
+		</panel>
+		<panel id="game">
+			<!--editor id="board" label="Sudoku" /-->
+		</panel>
+		<statusbar text="Good Luck!"/>
+	</window>
+	<dialog id="dialog_app"></dialog>
+</gx>

@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
-<gxml>
+<gx>
 	<window id="win" 
 			title="GXML TEST" 
 			icon="feed.png" 
 			width="600" 
-			height="400">
+			height="400"
+			onload="init">
 		<menubar id="menus">
 			<menu id="file" label="File">
 				<menuitem label="&amp;New" command="5002"/>
@@ -21,10 +22,11 @@
 		<!--toolbar>
 			<tool id="new" label="New" icon="wxe.xpm" command="5002"/>
 		</toolbar-->
-		<tabs id="tabs">
+		<tabs id="tabs"
+			position="top">
 			<editor id="stc1" title="Editor" lexer="Erlang"/>
 			<editor id="stc2" title="Editor2" lexer="Erlang"/>
 		</tabs>
 		<statusbar text="Ready"/>
 	</window>
-</gxml>
+</gx>

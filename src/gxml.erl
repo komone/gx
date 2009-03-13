@@ -4,23 +4,30 @@
 -author('steve@simulacity.com').
 
 -include_lib("xmerl/include/xmerl.hrl").
--export([load/1]).
+-export([load/1, gen/1]).
 
 %% Loads a gxml file and returns it as a gx term
 % NOTE: this returns a list as you may wish to use 
-% more than one window or have replaceable trees for
-% use later...
+% more than one window, specify dialogs, or have 
+% replaceable component trees at runtime...
 load(File) ->
 	{ok, Bin} = file:read_file(File),
 	Markup = binary_to_list(Bin),
 	{Xml, []} = xmerl_scan:string(Markup, [{space, normalize}]),
 	case Xml#xmlElement.name of 
-	gxml -> 
+	gx -> 
 		Term = convert(Xml#xmlElement.content, []),
 		{ok, Term};
 	_ -> {error, invalid_file}
 	end.
 	
+%% Utility
+%% TODO: only a single term is currently allowed
+gen(File) ->
+	{ok, [UI]} = load(File),
+	TermFile = filename:basename(File, ".xml") ++ ".gui",
+	ok = file:write_file(TermFile, io_lib:format("~p.~n", [UI])).
+
 %%
 %% Internal API
 %%
