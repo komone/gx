@@ -11,7 +11,7 @@ init(File) ->
 
 %% or use gxml:load to generate the following term...
 init() -> 
-	UI = [{window,[{id, ex1},{width, 200},{height, 100}],
+	UI = [{frame,[{id, ex1},{width, 200},{height, 100}],
          [{button,[{id, butt},
                    {label, "Press Me"},
                    {onclick, clicked}],

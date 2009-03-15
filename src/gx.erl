@@ -14,24 +14,28 @@
 -export([start/2, create/1, create/3, destroy/2, get/2, set/3]).
 -export([ % Components
 	frame/2, window/2, % dialog/2,
+	panel/2, box/2, grid/2,
 	menubar/2, menu/2, menuitem/2, separator/2,
-	toolbar/2, tool/2, button/2, statusbar/2, 
+	toolbar/2, toolitem/2, button/2, statusbar/2, 
 	tabs/2, editor/2, alert/3 % many more...
 ]). 
 
+% wxe.hrl is hidden so redefine...
+-record(wx_ref, {ref, type, state=[]}).
 
 %%
 %% Core GUI startup and event loop
 %%
 
 %% Spawn a GUI process instance
-start(Module, UI) ->
+start(Module, GUI) when is_atom(Module), is_list(GUI) ->
 	gx_registry:start(),
-	spawn_link(?MODULE, init, [Module, UI]).
+	spawn_link(?MODULE, init, [Module, GUI]).
 
 %% if we have a term definition, load the UI...
 init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
-	%% TODO: Keep this reminder until more than a single UI can be created here!
+	%% TODO: Keep this reminder until more than a single top level component
+	%% for the UI can be created during init.
 	io:format("[UNPARSED] ~p~n", [T]), 
 	Frame = gx:create(GxTerm),
 	wxFrame:sendSizeEvent(Frame),
@@ -40,8 +44,8 @@ init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
 % ...or else load the xml file definition
 init(Module, File) when is_list(File) ->
 	{ok, Resource} = gx_registry:find_resource(File),
-	{ok, Term} = gxml:load(Resource),
-	init(Module, Term).
+	{ok, TermList} = gx_xml:load(Resource),
+	init(Module, TermList).
 
 %% The main event loop for the GUI process instance
 loop(Module, Frame) when is_atom(Module) ->
@@ -49,6 +53,7 @@ loop(Module, Frame) when is_atom(Module) ->
 	%% TODO: what if the window doesn't have an id/name??
 	Evt = #wx{event=#wxClose{}, userData={GxName, _}} ->
 		Function = get_handler(Module, Evt),
+		io:format("wxClose: ~p~n", [Function]),
 		Module:Function(Frame, Evt),
   	    destroy(Frame, GxName);
 	Evt = #wx{} ->
@@ -59,8 +64,14 @@ loop(Module, Frame) when is_atom(Module) ->
 		end,
 		Function = get_handler(Module, Evt),
 		Msg = #gx{id=Name, type=Function, event=Evt#wx.id, data=[Evt]},
-		Module:Function(Frame, Msg),
-		loop(Module, Frame);
+		case Module:Function(Frame, Msg) of 
+		ok -> loop(Module, Frame);
+		exit -> destroy(Frame, Name);
+		Value -> 
+			io:format("INVALID CALLBACK ~p RETURNED ~p~n", [Function, Value]),
+			loop(Module, Frame)
+		
+		end;
 	Evt ->
 		io:format("INVALID EVENT ~p~n", [Evt]),
 		loop(Module, Frame)
@@ -83,7 +94,7 @@ get_handler(Module, #wx{userData={_GxName, GxHandler}}) ->
 		end
 	end;
 get_handler(Module, E = #wx{id=Command}) when is_integer(Command) ->
-	GxHandler = gx_registry:lookup_command_handler(Command),
+	GxHandler = gx_registry:lookup_command(Command),
 	get_handler(Module, E#wx{userData={undefined, GxHandler}}).
 
 %
@@ -114,19 +125,19 @@ get_callbacks(Opts) ->
 	[{X, Convert(Y)} || {X, Y} <- Opts, is_atom(X), lists:member(X, ?GX_EVENTS)].
 
 %% Register a GX component
-component(GxName, Component) ->
+register(GxName, Component) ->
 	gx_registry:add_component(GxName, Component).
 
 %% Register a GX command and the user-defined handler
-command(GxName, {_WxType, WxMap}, GxHandlers) ->
-	[GxHandler] = map_callbacks(WxMap, [GxHandlers], []),
-	gx_registry:add_command_handler(GxName, GxHandler).
+command(GxName, {_WxType, WxMap}, GxHandler) ->
+	[GxCallback] = map_callbacks(WxMap, [GxHandler], []),
+	gx_registry:add_command(GxName, GxCallback).
 	
 %% Register/enable all (valid) user defined event handlers
 events(GxName, Component, [{WxType, WxMap}|T], GxHandlers) ->
-	HandlerMap = map_callbacks(WxMap, GxHandlers, []),
+	GxCallbacks = map_callbacks(WxMap, GxHandlers, []),
 	%io:format("[CONNECT ] '~p' [~p] ~p~n", [GxName, WxType, HandlerMap]),
-	connect_callbacks(WxType, GxName, Component, HandlerMap),
+	connect_callbacks(WxType, GxName, Component, GxCallbacks),
 	%io:format("~n", []),
 	events(GxName, Component, T, GxHandlers);
 events(_, Component, [], _) -> 
@@ -150,9 +161,9 @@ map_callback(WxMap, [_|T]) ->
 map_callback(_, []) ->
 	undefined.
 
-%% Finally, wire the callbacks from the WX component to the WXE server 
+%% Finally, wire the callbacks from the WX component to the WXE server
 connect_callbacks(WxType, GxName, Component, [{WxEvent, GxHandler}|T]) ->
-	%io:format("           '~p' ~p->~p~n", [GxName, WxEvent, UserHandler]),
+	io:format("           '~p' {~p, ~p}~n", [GxName, WxEvent, GxHandler]),
 	WxType:connect(Component, WxEvent, [{userData, {GxName, GxHandler}}]),
 	connect_callbacks(WxType, GxName, Component, T);
 connect_callbacks(_, _, _, []) -> 
@@ -168,7 +179,7 @@ connect_callbacks(_, _, _, []) ->
 get(GxName, Property) ->
 	Component = lookup(GxName),
 	case Component of 
-	{_, _, Type, _} -> Type:Property(Component);
+	{wx_ref, _, Type, _} -> Type:Property(Component);
 	_ -> undefined
 	end.
 
@@ -177,7 +188,7 @@ set(GxName, Action, Args) ->
 	%% TODO: Action is currently directly(!!!) applied as the function name
 	Component = lookup(GxName),
 	case Component of 
-	{_, _, Type, _} -> apply(Type, Action, [Component|Args]);
+	{wx_ref, _, Type, _} -> apply(Type, Action, [Component|Args]);
 	_ -> undefined
 	end.
 	
@@ -190,12 +201,13 @@ lookup(GxName) ->
 %
 
 %% trunk
-create({window, Config, Children}) ->
+create({frame, Config, Children}) ->
 	GX = gx_registry:start(),
 	wx:batch(fun() -> 
 		%io:format("[CREATE  ] ~p ~p ~p~n", [window, GX, Config]),
-		Frame = window(GX, Config),
+		Frame = frame(GX, Config),
 		create_tree(Frame, Children),
+		wxWindow:fit(Frame),
 		Frame end).
 
 create(Component, Parent, Opts) ->
@@ -215,62 +227,147 @@ create_tree(Parent, []) ->
 	Parent.
 
 %%
-destroy(Component, GxName) when is_tuple(Component), is_atom(GxName) ->
-	gx_registry:remove_component(Component, GxName).
+destroy(Component, GxName) when is_tuple(Component), is_atom(GxName) ->	
+	gx_registry:remove_component(Component, GxName),
+	%% Assume parent_class is wxWindow...
+	wxWindow:destroy(Component).
 	
+	
+get_sizer_flags(Opts) ->
+	SizerFlags = wxSizerFlags:new(),	
+	Align = get_atom(align, center, Opts),
+	case Align of 
+	left   -> wxSizerFlags:left(SizerFlags);
+	center -> wxSizerFlags:center(SizerFlags);
+	right  -> wxSizerFlags:right(SizerFlags);
+	_      -> ignore
+	end,
+	% TODO support border="10, 10, 0, 0" etc
+	Border = get_integer(border, 0, Opts),
+	wxSizerFlags:border(SizerFlags, ?wxALL, Border),
+	Fill = get_boolean(fill, false, Opts),
+	case Fill of
+	true -> wxSizerFlags:expand(SizerFlags);
+	false -> ignore
+	end,
+	SizerFlags.
+
+get_orientation(Opts) ->
+	case get_atom(orientation, vertical, Opts) of
+	horizontal -> ?wxHORIZONTAL;
+	vertical -> ?wxVERTICAL
+	end.
+
 %%
 %% GX/WX Components
 %%
 
-%% NOT YET USED
-frame(Parent, Opts) ->
-	Title = get_string(title, "Untitled", Opts),
-	X = get_integer(width, 400, Opts),
-	Y = get_integer(height, 300, Opts),
-	Frame = wxFrame:new(Parent, -1, Title, [{size, {X, Y}}]),
-	Icon = get_resource(icon, Opts),
-	wxFrame:setIcon(Frame, Icon),
-	GxName = get_atom(id, Opts),
-	%% NOTE: Add inherited event mapping macros too
-	gx:events(GxName, Frame, [?GX_WINDOW_EVENTS], get_callbacks(Opts)),
-	gx:component(GxName, Frame).
-
-%% review what "window" really means
 %% Opts = [{title, String}|{width, Integer}|{height, Integer}|{icon, Path}]
-window(Parent, Opts) ->
+frame(Parent = #wx_ref{type=wx}, Opts) ->
+	GxName = get_atom(id, Opts),
 	Title = get_string(title, "Untitled", Opts),
-	X = get_integer(width, 400, Opts),
-	Y = get_integer(height, 300, Opts),	
+	X = get_integer(width, 50, Opts),
+	Y = get_integer(height, 0, Opts),
 	Frame = wxFrame:new(Parent, -1, Title, [{size, {X, Y}}]),
+	
+	Callbacks = get_callbacks(Opts),
+	%% NOTE: Should add inherited event mapping macros too, e.g. CLOSE!!!?
+	gx:events(GxName, Frame, [?GX_WINDOW_EVENTS], Callbacks),
+
+% removed for now	
+	Sizer = wxBoxSizer:new(?wxVERTICAL),
+	wxSizer:setMinSize(Sizer, X, Y),
+
+	SizerFlags = wxSizerFlags:new(),
+	wxSizerFlags:expand(SizerFlags),	
+	wxFrame:setSizer(Frame, Sizer),
+	wxSizer:setSizeHints(Sizer, Frame), %% Top-level windows only
+
 	Icon = get_resource(icon, Opts),
 	wxFrame:setIcon(Frame, Icon),
+	gx:register(GxName, Frame).
+
+%%
+window(Parent, Opts) -> 
 	GxName = get_atom(id, Opts),
+	X = get_integer(width, 200, Opts),
+	Y = get_integer(height, 200, Opts),	
+	Window = wxWindow:new(Parent, -1, [{size, {X, Y}}]),
+	
 	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, Frame, [?GX_WINDOW_EVENTS], Callbacks),
-	gx:component(GxName, Frame).
+	gx:events(GxName, Window, [?GX_WINDOW_EVENTS], Callbacks),
+	gx:register(GxName, Window).
 
+%%
 panel(Parent, Opts) ->
-	Name = get_atom(id, Opts),
+	GxName = get_atom(id, Opts),
+	Orientation = get_orientation(Opts),
 	Panel = wxPanel:new(Parent),
-	gx:component(Name, Panel).
+	
+	Sizer = wxBoxSizer:new(Orientation),
+	wxWindow:setSizer(Panel, Sizer),
+	ParentSizer = wxWindow:getSizer(Parent),
+	SizerFlags = get_sizer_flags(Opts),
+	wxSizer:add(ParentSizer, Panel, SizerFlags),
+	wxSizer:fit(Sizer, Parent),
+	
+	gx:register(GxName, Panel).
 
-menubar(Parent = {_, _, wxFrame, _}, Opts) ->
-	Name = get_atom(id, Opts),
+%% 
+box(Parent, Opts) ->
+	GxName = get_atom(id, Opts),
+	Label = get_string(label, Opts),
+	
+	%% NOTE: wxStaticBox must be added as a first sibling, and not used as
+	%% the parent or wxWidgets will *crash* on exit. Thus we enclose the
+	%% box in a panel and add in the StaticBox as the first child.	
+	Panel = wxPanel:new(Parent),
+	Sizer = wxBoxSizer:new(?wxVERTICAL),
+	Box = wxStaticBox:new(Panel, -1, Label),
+	BoxSizer = wxStaticBoxSizer:new(Box, ?wxVERTICAL),
+	wxSizer:add(BoxSizer, Sizer),
+	wxPanel:setSizer(Panel, BoxSizer),
+	
+	ParentSizer = wxWindow:getSizer(Parent),
+	SizerFlags = get_sizer_flags(Opts),
+	wxSizer:add(ParentSizer, Panel, SizerFlags),
+	wxSizer:fit(Sizer, Parent),
+	
+	gx:register(GxName, Panel).
+
+grid(_Parent, _Opts) ->
+	not_implemented.
+
+%% allow shorthand of 'item' inside lists, menus and toolbars
+item(Parent = #wx_ref{type=wxList}, Opts) ->
+	listitem(Parent, Opts);
+item(Parent = #wx_ref{type=wxMenu}, Opts) ->	
+	menuitem(Parent, Opts);
+item(Parent = #wx_ref{type=wxToolBar}, Opts) ->	
+	toolitem(Parent, Opts).
+
+%% also for toolbar later...
+separator(Parent = #wx_ref{type=wxMenu}, _Opts) ->
+	wxMenu:appendSeparator(Parent).
+
+
+menubar(Parent = #wx_ref{type=wxFrame}, Opts) ->
+	GxName = get_atom(id, Opts),
     MenuBar = wxMenuBar:new(),
 	wxFrame:setMenuBar(Parent, MenuBar),
     wxFrame:connect(Parent, command_menu_selected),
-	gx:component(Name, MenuBar).
+	gx:register(GxName, MenuBar).
 
 %% Opts = [{label, String}]
 menu(Parent, Opts) ->
-	Name = get_atom(id, Opts),
+	GxName = get_atom(id, Opts),
 	Label = get_string(label, "", Opts),
 	Menu = wxMenu:new(),
 	wxMenuBar:append(Parent, Menu, Label),	
-	gx:component(Name, Menu).
-	
+	gx:register(GxName, Menu).
+
 %% Opts = [{label, String} | {enable, Bool} | {command, Integer}]
-menuitem(Parent = {_, _, wxMenu, _}, Opts) -> 
+menuitem(Parent = #wx_ref{type=wxMenu}, Opts) -> 
 	GxName = get_atom(id, Opts),
 	Label = get_string(label, Opts),
 	Type = get_atom(type, normal, Opts),
@@ -283,23 +380,26 @@ menuitem(Parent = {_, _, wxMenu, _}, Opts) ->
 	normal   -> wxMenu:append(Parent, Command, Label);
 	_        -> {error, invalid_menu_item}
 	end,
-
-	_Checked = get_boolean(checked, false, Opts),
-%	wxMenuItem:check(Item, [{check, Checked}]),
+	Checked = get_boolean(checked, false, Opts),
+	wxMenuItem:check(Item, [{check, Checked}]),
 	Enabled = get_boolean(enable, true, Opts),
 	wxMenuItem:enable(Item, [{enable, Enabled}]),
-	gx:component(GxName, Item).
+	gx:register(GxName, Item).
+
+list(_Parent, _Opts) ->
+	not_implemented.
+
+listitem(_Parent = #wx_ref{type=wxList}, _Opts) ->
+	not_implemented.
 	
-separator(Parent = {_, _, wxMenu, _}, _Opts) ->
-	wxMenu:appendSeparator(Parent).
 	
 toolbar(Parent, Opts) ->
 	Name = get_atom(id, Opts),
 	ToolBar = wxFrame:createToolBar(Parent, []),
-	gx:component(Name, ToolBar).
+	gx:register(Name, ToolBar).
 
 %% Opts = [{label, String} | {icon, Path}]
-tool(_Parent = {_, _, wxToolBar, _}, Opts) ->
+toolitem(_Parent = #wx_ref{type=wxToolBar}, Opts) ->
 	_Label = get_string(label, "", Opts),
 	_Icon = get_resource(icon, Opts).
 %% NOTE: doesn't work - need to understand more about wx realize cpp call
@@ -310,40 +410,60 @@ tool(_Parent = {_, _, wxToolBar, _}, Opts) ->
 tabs(Parent, _Opts) ->
 	wxNotebook:new(Parent, -1, []).
 
-%% Opts = [{title, String}]
+%% Opts = [{label, String}]
 editor(Parent, Opts) ->
-	Name = get_atom(id, Opts),
-%	Title = get_option(title, "Untitled", Opts),
-	Editor = wxStyledTextCtrl:new(Parent),
-	gx:component(Name, Editor),
-%	wxNotebook:addPage(Parent, Editor, Title),
+	GxName = get_atom(id, Opts),
+	Value = get_option(value, "Untitled", Opts),
+	Editor = wxTextCtrl:new(Parent, -1, [{value, Value}]),
+	
+	SizerFlags = wxSizerFlags:new(),	
+	
+	% TODO support border="10, 10, 0, 0" etc
+	Border = get_integer(border, 0, Opts),
+	wxSizerFlags:border(SizerFlags, ?wxALL, Border),
+	
+	Fill = get_boolean(fill, true, Opts),
+	case Fill of
+	true -> wxSizerFlags:expand(SizerFlags);
+	false -> ignore
+	end,
+
+	Sizer = wxWindow:getSizer(Parent),
+%	io:format("PARENT: ~p SIZER: ~p~n", [Parent, Sizer]),
+	wxSizer:add(Sizer, Editor, SizerFlags),
+	wxSizer:fit(Sizer, Parent),
+
+	gx:register(GxName, Editor),
 	Editor.
 
 %% Opts = [{label, String}]
 button(Parent, Opts) ->
+	GxName = get_atom(id, Opts),
 	Label = get_string(label, "OK", Opts),
 	Button = wxButton:new(Parent, -1, [{label, Label}]),
-	GxName = get_atom(id, Opts),
+	
+	Sizer = wxWindow:getSizer(Parent),
+	wxSizer:add(Sizer, Button, get_sizer_flags(Opts)),
+	wxSizer:fit(Sizer, Parent),
+	
 	Callbacks = get_callbacks(Opts),
 	gx:events(GxName, Button, [?GX_BUTTON_EVENTS], Callbacks),
-	gx:component(GxName, Button).
+	gx:register(GxName, Button).
 
 %% Opts = [{text, String}]
 statusbar(Parent, Opts) ->
-	Name = get_atom(id, Opts),
-	StatusBar = wxFrame:createStatusBar(Parent,[]),
-	gx:component(Name, StatusBar),
+	GxName = get_atom(id, Opts),
+	StatusBar = wxFrame:createStatusBar(Parent,[]),	
 	Text = get_option(text, "", Opts),
 	wxFrame:setStatusText(Parent, Text, []),
-	StatusBar.
-
+	gx:register(GxName, StatusBar).
 %%
 alert(Parent, Message, Opts) ->
 	Name = get_atom(id, Opts),
 	Caption = get_string(title, "", Opts),
 	Dialog = wxMessageDialog:new(Parent, Message,
 		[{style, ?wxOK bor ?wxICON_INFORMATION}, {caption, Caption}]),
-	gx:component(Name, Dialog),		
+	gx:register(Name, Dialog),		
 	wxDialog:centreOnParent(Dialog),
     wxDialog:showModal(Dialog),
     wxDialog:destroy(Dialog). 
@@ -352,8 +472,9 @@ alert(Parent, Message, Opts) ->
 filedialog(Parent, Opts) ->
 	Name = get_atom(id, Opts),
 	FileDialog = wxFileDialog:new(Parent),
-	gx:component(Name, FileDialog),
+	gx:register(Name, FileDialog),
     wxDialog:showModal(FileDialog),
 	Filename = wxFileDialog:getFilename(FileDialog),
 	wxFileDialog:destroy(FileDialog),
 	Filename.
+

@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
-<!-- WEIRD MENU BUG - wxChecked error vs. all first wxMenuItems are bold -->
 <gx>
-	<window id="win" 
+	<frame id="win" 
 			title="Sudoku"
 			icon="feed.png"
 			width="400"
@@ -10,17 +9,17 @@
 			onunload="on_close">
 		<menubar>
 			<menu id="file" label="File">
-				<menuitem label="New Game" onselect="new" />
-				<menuitem label="Open Game" onselect="open" />
-				<menuitem label="Save Game" onselect="save" />
+				<item label="New Game" onselect="new" />
+				<item label="Open Game" onselect="open" />
+				<item label="Save Game" onselect="save" />
 				<separator/>
-				<menuitem label="Print..." onselect="print"/>
-				<menuitem label="Print Setup" onselect="print_setup"/>
-				<menuitem label="Print Preview" onselect="print_preview"/>
+				<item label="Print..." onselect="print"/>
+				<item label="Print Setup" onselect="print_setup"/>
+				<item label="Print Preview" onselect="print_preview"/>
 				<separator/>
-				<menuitem label="Quit Game" onselect="on_exit"/>
+				<item label="Quit Game" onselect="on_exit"/>
 			</menu>
-			<menu id="options" label="Options">
+			<menu id="options" label="Options"><!-- item or menuitem? -->
 				<menuitem id="trivial" type="radio" label="Level: Trivial" onselect="set_trivial"/>
 				<menuitem id="easy" type="radio" label="Level: Easy" onselect="set_easy"/>
 				<menuitem id="normal" type="radio" label="Level: Normal" onselect="set_normal" selected="true" />
@@ -30,18 +29,18 @@
 				<menuitem id="errors" label="Show Errors" type="checkbox" onselect="show_errors" selected="true" />
 			</menu>
 			<menu id="help" label="Help">
-				<menuitem label="Rules" onselect="show_rules"/>
-				<menuitem label="About" onselect="aboutbox"/>
+				<item label="Rules" onselect="show_rules"/>
+				<item label="About" onselect="aboutbox"/>
 			</menu>
 		</menubar>
 		<panel id="tools"
 			orientation="horizontal|vertical"
-			scrolling="vertical|horizontal|both|none">
+			scrolling="vertical|horizontal|both|auto|none">
 			<button id="new_btn" label="New Game" 
 				align="left" 
 				fill="true"
 				border="simple|single|double|raised|sunken|themed|none"
-				padding="5|5,5|5,5,5,5"
+				padding="10"
 				onclick="new" />
 				<!-- align="fill" or fill="true" fill="true|false|constrain" ??? -->
 			<button label="Empty Board" onclick="empty" />
@@ -52,6 +51,6 @@
 			<!--editor id="board" label="Sudoku" /-->
 		</panel>
 		<statusbar text="Good Luck!"/>
-	</window>
+	</frame>
 	<dialog id="dialog_app"></dialog>
 </gx>

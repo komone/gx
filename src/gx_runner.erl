@@ -14,11 +14,11 @@ start(File) ->
 %%
 %% Callbacks
 %%
-on_close(_Gx, Event) ->
-	io:format("[GXRUNNER] ~p~n", [Event]).
-on_exit(_Gx, Event) ->
-	io:format("[GXRUNNER] ~p~n", [Event]).
-	
+on_close(_Gx, Event) -> 
+	print(Event), exit.
+on_exit(_Gx, Event) -> 
+	print(Event).
+
 on_about(Gx, _Event) ->
     Text =  "GX Test for Erlang\n"
 			"* EXPERIMENTAL*\n"
@@ -26,7 +26,7 @@ on_about(Gx, _Event) ->
 	gx:alert(Gx, Text, [{title, "About GX Test"}]).
 
 on_message(Gx, Event) ->
-	io:format("[GXRUNNER] ~p~n", [Event]),
+	print(Event),
 	case Event of
 	{gx,win,_,5000,_} -> 
 		String = gx:filedialog(Gx, []),
@@ -35,8 +35,12 @@ on_message(Gx, Event) ->
 	end.
 	%gx:set(win, status, ["Last event at " ++ timestamp()]).
 
-on_click(_Gx, Event) ->
-	io:format("~p~nClicked!~n", [Event]).
+on_click(_Gx, _Event) -> 
+	io:format("[GXRUNNER] Clicked!~n", []), 
+	error.
+
+print(Message) ->
+	io:format("[GXRUNNER] ~p~n", [Message]).
 
 %%
 %% Application Internals

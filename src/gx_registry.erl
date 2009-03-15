@@ -44,30 +44,26 @@ start() ->
 stop() ->
 	case ets:info(?GX_COMMANDS) of
 	undefined -> ok;
-	_ -> 
-		ets:delete(?GX_COMMANDS)
+	_ -> ets:delete(?GX_COMMANDS)
 	end,
 	case ets:info(?GX_COMPONENTS) of
 	undefined -> ok;
-	_ -> 
-		ets:delete(?GX_COMPONENTS)
+	_ -> ets:delete(?GX_COMPONENTS)
 	end,
 	wx:destroy().
 
-%%
+%% 
 info() ->
 	case ets:info(?GX_COMPONENTS) of
 	undefined -> no_gx;
 	_ -> 
 		Components = ets:tab2list(?GX_COMPONENTS),
-		io:format("Registry: ~p records~n~p~n", [length(Components), Components]),
 		case ets:info(?GX_COMMANDS) of
-		undefined ->
-			io:format("Mapping: <none>~n", []);
-		_ -> 
-			Commands = ets:tab2list(?GX_COMMANDS),
-			io:format("Commands: ~p records~n~p~n", [length(Commands), Commands])
-		end
+		undefined -> Commands = [];
+		_ -> Commands = ets:tab2list(?GX_COMMANDS)
+		end,
+		{gx_registry, [{components, length(Components), Components}, 
+		{commands, length(Commands), Commands}]}
 	end.
 
 %%
@@ -83,8 +79,7 @@ add_component(GxName, Component) when is_atom(GxName) ->
 %%
 remove_component(Component, Name) when is_tuple(Component) ->
 	remove_component(Name, ?GX_COMMANDS),
-	remove_component(Name, ?GX_COMPONENTS),
-	wxWindow:destroy(Component);
+	remove_component(Name, ?GX_COMPONENTS);
 remove_component(Name, DB) when is_atom(Name), is_atom(DB) ->	
 	Process = self(),
 	Delete = fun(X, Acc) ->
@@ -105,14 +100,14 @@ lookup_component(Name) ->
 	end.
 
 %%
-add_command_handler(GxName, GxHandler) ->	
+add_command(GxName, GxCallback) ->	
 	case ets:member(?GX_COMMANDS, {self(), GxName}) of 
 	true -> 
 		Command = -1, 
 		ignored;
 	false -> 
 		Command = ?wxID_HIGHEST + 1001 + ets:info(?GX_COMMANDS, size),
-		ets:insert_new(?GX_COMMANDS, {{self(), Command}, GxHandler})
+		ets:insert_new(?GX_COMMANDS, {{self(), Command}, GxCallback})
 	end,
 	%io:format("[COMMAND] '~p' [~p] ~p~n", [CommandID, GxName, Handler]),
 	Command.
@@ -120,10 +115,10 @@ add_command_handler(GxName, GxHandler) ->
 %% TODO?: do we also need remove_command? it would be symmetrical...
 
 %% TODO?: could do a consistency check on Type...
-lookup_command_handler(Command) ->
+lookup_command(Command) ->
 	Process = self(),
 	case ets:lookup(?GX_COMMANDS, {Process, Command}) of 
-	[{{Process, Command}, {_Type, Handler}}] -> Handler;
+	[{{Process, Command}, {_Type, Callback}}] -> Callback;
 	_ -> undefined
 	end.
 
@@ -218,7 +213,6 @@ find_file([H|T]) ->
 find_file([]) ->
 	{error, resource_missing}.
 
-%%
-%% GX Property to WX Method mapping
-%%
-map(wxFrame, status) -> setStatusText.
+
+
+
