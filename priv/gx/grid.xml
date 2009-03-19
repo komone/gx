@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<gx>
+<window title="GX Tutorial">
+	<statusbar/>
+	<panel>
+	<box align="right" border="5" label="Buttons" >
+		<panel layout="grid" align="center">
+				<button id="A1" label="A1"/>
+				<button id="A2" label="A2"/>
+				<button id="A3" label="A3"/>
+				<button id="A4" label="A4"/>
+		</panel>
+	</box>
+	</panel>
+</window>
+</gx>

@@ -1,0 +1,667 @@
+<html>
+<head>
+<title>Erlang GX Reference</title>
+<style type="text/css">
+/* Debug borders */
+p, li, dt, dd, div, pre, h1, h2, h3, h4, h5, h6 {
+/*
+  border: 1px solid red;
+*/
+}
+ 
+body {
+	margin: 1em 5% 1em 5%;
+	font-family: arial, sans-serif;
+	font-size: 10pt;
+}
+ 
+a {
+	font-size: 9pt;
+	color: #527bbd;
+	text-decoration: none;
+}
+
+a:hover {
+	color: fuschia;
+}
+
+a:visited {
+  color: #527bbd;
+  text-decoration: none;
+}
+ 
+em {
+  font-style: italic;
+}
+ 
+strong {
+  font-weight: bold;
+}
+
+p.copyright {
+	font-size: 8pt;
+	text-align: center;
+	color: #555;
+	margin: 2em;
+}
+
+tt {	
+	color: #447;
+	font-family: "Bitstream Vera Sans Mono", "Courier New", Courier, sans-serif;
+	font-size: 10pt;
+}
+ 
+h1, h2, h3, h4, h5, h6 {
+  color: #527bbd;
+  font-family: sans-serif;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+ 
+h1, h2, h3 {
+  border-bottom: 2px solid silver;
+}
+h2 {
+  padding-top: 0.5em;
+}
+h3 {
+font-size: 14pt;
+}
+p {
+	font-family: arial, sans-serif;
+	font-size: 13px;
+}
+table {
+	width: 100%;
+	border: solid 1px silver;
+	border-collapse: collapse;
+	margin-top: 1em;
+} 
+
+thead {
+	border: solid 1px silver;
+	background-color: #eee;
+}
+
+th, td {
+	padding: 0.5em;
+}
+td.text {
+	padding: 0.4em;
+	font-family: arial, sans-serif;
+	font-size: 11pt;
+}
+
+th {
+	text-align: left;
+}
+td {
+	font-family: "Bitstream Vera Sans Mono", "Courier New", Courier, sans-serif;
+	font-size: 10pt;
+	vertical-align: top;
+	border-bottom: 1px solid silver;
+}
+code {
+	font-family: "Bitstream Vera Sans Mono", "Courier New", Courier, sans-serif;
+	font-size: 9pt;
+}
+
+p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+ 
+.note {
+	padding: 4px;
+	border: dotted 1px #aaa;
+	background-color: #cfc;
+	font-style: italic;
+ }
+ 
+hr {
+  border: 1px solid silver;
+}
+ 
+pre {
+  padding: 0;
+  margin: 0;
+}
+ 
+dl {
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+}
+dt {
+  margin-top: 0.5em;
+  margin-bottom: 0;
+  font-style: italic;
+}
+dd > *:first-child {
+  margin-top: 0;
+}
+ 
+ul, ol {
+    list-style-position: outside;
+}
+thead {
+  font-family: sans-serif;
+  font-weight: bold;
+}
+tfoot {
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+<a href="#module">Functions</a> 
+| <a href="#events">Events</a>
+| <a href="#components">Components</a>
+| <a href="#tips">Tips</a>
+<h1>gx</h1>
+<p class="note">This documentation is provisional and subject to change without notice.</p>
+<p>GX aims to be:
+<ul>
+	<li>Easy to learn</li>
+	<li>Fast to develop with</li>
+	<li>Fast in use</li>
+</ul>
+</p>
+<p>Since GX runs as a fairly thin facade layer over the top of wxErlang/wxWidgets, it's mature, cross-platform, performant and offers native look and feel.</p>
+
+<h2>History</h2>
+<p>GUI programming is traditionally verbose, laborious, tedious and boring.</p>
+<p>When I first saw Erlang's GS interface, it was a revelation. Simple, fast, and easy to learn. It's major weakness is not functional, but rather that GUIs using it "look like crap".</p>
+<p>With the introduction of <tt>wx</tt> in <em>Erlang/OTP R13</em> we have an interface to a mature widget set that provides native look and feel. Unfortunately, WX suffers from the fact that coding is verbose, laborious, tedious and boring.</p>
+<p>GX is an attempt to bring the good stuff of the interface (GS) and the implementation (WX) together to make a pleasant framework to build UIs in. "GS" over "WX" is why it's called GX (and stays two letters long).</p>
+<p>However, there was roadblock. Complex UIs using a vanilla GS-style interface quickly means that you enter a brace-matching hell. Hand-coding complex terms (at least, for me) very soon becomes a frustrating exercise because of this. Using XML makes this part very much easier, so I added GXML as a prototyping/definition language that was easy to write.</p>
+<p>To simplify things further from a coding standpoint, I made the GX naming for Components and Options in term format <u>exactly consistent</u> with the XML elements and XML attributes in the GXML markup.</p>
+<p>Perhaps most controversially, I decided to carry over the event type names from HTML 5 into GX. HTML event names are familiar and easy to remember for most people. The entire intention of all of this is to make the learning/relearning time for using GX to build professional GUIs as close to zero as possible. I hope that it will at least come close.</p>
+
+<h2>Tips</h2>
+<p>The suggested process for UI development with GX is...</p>
+<ol>
+<li>Design your interface using GXML.</li>
+<li>Early on, use <tt>gx_runner:start("my_ui.xml")</tt> to check the look and feel as you go along.</li>
+<li>Once the basics are in, use <tt>gxml:gen_stub("my_ui.xml")</tt> to create a basic erlang source file. This will have all the 
+callbacks defined in the GXML file stubbed and ready to add the processing that will be the point of using your application.</li> 
+<li>For on the fly UI changes in the code, think "create, destroy, get and set". You shouldn't need anything else from GX (If you do, tell me what's missing!).</li>
+<li>Continue to develop the callbacks in your ERL source in tandem with any UI changes you need to make using your GXML definition file until you are feature complete.</li>
+<li>Finally, lock down the UI and hide it from prying fingers by using <tt>gxml:gen("my_ui.xml")</tt> to generate the term which you 
+can simply copy into your erlang source for final compilation.</li>
+</ol>
+<a name="module"></a>
+<h2>Modules</h2>
+<h3>gx</h3>
+<table>
+<thead><tr><th width="400">Function</th><th>Description</tr></thead>
+<tbody>
+<tr><td>gx:create(Module, UI) </td><td class="text">Kick off the UI.<br/><tt>Module</tt> specifies the module containing the callback handlers and is almost always called with <tt>?MODULE</tt>.<br/><tt>UI</tt> is a term containing a list of gx tuples; a term file; or a GXML file.</td>
+<tr><td>gx:create(Parent, Component, Attributes)</td><td class="text">Create a component on the fly.</td></tr>
+<tr><td>gx:<i>Component</i>(Parent, Attributes)</td><td class="text">Shorthand for <tt>gx:create</tt> to create on the fly components, e.g. <tt>gx:button(Win, [{label, "Hello"}, ...])</tt></td></tr>
+<tr><td>gx:destroy(Component)</td><td class="text">Remove the component, its children, and all artifacts.</td></tr>
+<tr><td>gx:get(Component, Key)</td><td class="text">Get the current value of an attribute of a component.</td></tr>
+<tr><td>gx:set(Component, [{Key, Value}])</td><td class="text">Set one or more attributes of a component.</td></tr>
+</tbody>
+</table>
+
+<h3>gx_runner</h3>
+<table>
+<thead><tr><th width="400">Function</th><th>Description</tr></thead>
+<tbody>
+<tr><td>gx_runner:start(File)</td><td class="text">Runs a <tt>gxml</tt> or <tt>gui</tt> definition.</td></tr>
+<tr><td>gx_runner:stop()</td><td class="text"></td></tr>
+</tbody>
+</table>
+
+<h3>gx_registry</h3>
+<p class="note">You should not need to call this module at all, unless for debug purposes. In the future, <tt>gx_registry</tt> may offer an integration interface.</p>
+<table>
+<thead><tr><th width="400">Function</th><th>Description</tr></thead>
+<tbody>
+<tr><td>gx_registry:info()</td><td class="text">Dumps the gx registry. If you're interested.</td></tr>
+<tr><td>gx_registry:start()</td><td class="text">Starts the gx component registry and underlying graphics server (wxe_server). Not normally needed, as the first <tt>gx:start</tt> or <tt>gx:create</tt> will kick it off.</td></tr>
+<tr><td>gx_registry:stop()</td><td class="text">Stops the graphics server, killing ALL running graphics widgets/processes. Not normally needed.</td></tr>
+</tbody>
+</table>
+
+<h3>gx_server</h3>
+<p class="note">Not yet available. This is a network server for <tt>gx_runner</tt> clients.</p>
+<table>
+<thead><tr><th width="400">Function</th><th>Description</tr></thead>
+<tbody>
+<tr><td>gx_server:start()</td><td class="text"></td></tr>
+<tr><td>gx_server:start(Port)</td><td class="text"></td></tr>
+<tr><td>gx_server:stop()</td><td class="text"></td></tr>
+</tbody>
+</table>
+<h2>Types</h2>
+<table>
+<thead><tr><th>gx Event types (so far)</th></tr></thead>
+<tbody>
+<tr><td>
+onabort
+onbeforeunload
+onblur
+onchange
+onclick
+oncontextmenu
+ondblclick
+ondrag
+ondragend
+ondragenter
+ondragleave
+ondragover
+ondragstart
+ondrop
+onerror
+onevent(?)
+onfocus
+onhashchange
+onkeydown
+onkeypress
+onkeyup
+onload
+onmessage
+onmousedown
+onmousemove
+onmouseout
+onmouseover
+onmouseup
+onmousewheel
+onoffline
+ononline
+onpopstate
+onresize
+onscroll
+onselect
+onstorage
+onsubmit
+onunload
+</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>gx Color Names</th></tr></thead>
+<tbody>
+<tr><td>
+aliceblue
+antiquewhite
+aqua
+aquamarine
+azure
+beige
+bisque
+black
+blanchedalmond
+blue
+blueviolet
+brown
+burlywood
+cadetblue
+chartreuse
+chocolate
+coral
+cornflowerblue
+cornsilk
+crimson
+cyan
+darkblue
+darkcyan
+darkgoldenrod
+darkgray
+darkgrey
+darkgreen
+darkkhaki
+darkmagenta
+darkolivegreen
+darkorange
+darkorchid
+darkred
+darksalmon
+darkseagreen
+darkslateblue
+darkslategray
+darkturquoise
+darkviolet
+deeppink
+deepskyblue
+dimgray
+dodgerblue
+firebrick
+floralwhite
+forestgreen
+fuchsia
+gainsboro
+ghostwhite
+gold
+goldenrod
+gray
+grey
+green
+greenyellow
+honeydew
+hotpink
+indianred
+indigo
+ivory
+khaki
+lavender
+lavenderblush
+lawngreen
+lemonchiffon
+lightblue
+lightcoral
+lightcyan
+lightgoldenrodyellow
+lightgray
+lightgrey
+lightgreen
+lightpink
+lightsalmon
+lightseagreen
+lightskyblue
+lightslategray
+lightsteelblue
+lightyellow
+lime
+limegreen
+linen
+magenta
+maroon
+mediumaquamarine
+mediumblue
+mediumorchid
+mediumpurple
+mediumseagreen
+mediumslateblue
+mediumspringgreen
+mediumturquoise
+mediumvioletred
+midnightblue
+mintcream
+mistyrose
+moccasin
+navajowhite
+navy
+oldlace
+olive
+olivedrab
+orange
+orangered
+orchid
+palegoldenrod
+palegreen
+paleturquoise
+palevioletred
+papayawhip
+peachpuff
+peru
+pink
+plum
+powderblue
+purple
+red
+rosybrown
+royalblue
+saddlebrown
+salmon
+sandybrown
+seagreen
+seashell
+sienna
+silver
+skyblue
+slateblue
+slategray
+slategrey
+snow
+springgreen
+steelblue
+tan
+teal
+thistle
+tomato
+turquoise
+violet
+wheat
+white
+whitesmoke
+yellow
+yellowgreen
+</td></tr>
+</tbody>
+</table>
+
+<a name="components"></a>
+<h2>gx Component Set</h2>
+<table class="components">
+<thead><tr><th>Component/Element</th><th>Options/Attributes</th><th>Events</th><th>Children</th><th>Comment</th></tr></thead>
+<tbody>
+<tr>
+	<td>frame</td>
+	<td>id<br/>title<br/>icon<br/>width<br/>height<br/>pos</td>
+	<td>onload<br/>onunload</td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>dialog</td>
+	<td>id
+	<br/>title
+	<br/>icon
+	<br/>width
+	<br/>height
+	<br/>type
+	</td>
+	<td>onload
+	<br/>onunload
+	</td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>mdi</td>
+	<td>id
+	</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+
+<tr>
+	<td>gx</td>
+	<td></td>
+	<td></td>
+	<td>frame<br/>window<br/>dialog<br/>panel</td>
+	<td>The root graphics context<br/><i>Also:</i> The XML document type (tag) enclosing all other elements</td>
+</tr>
+<tr>
+	<td>window</td>
+	<td>id
+	<br/>width
+	<br/>height
+	<br/>border
+	<br/>scrollbars
+	</td>
+	<td>onload<br/>onunload</td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>sashwindow</td>
+	<td>id = atom()<br/>title = string()<br/>icon = url()<br/>width = integer()<br/>height = integer()</td>
+	<td>onload = atom()<br/>onunload = atom()</td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>panel</td>
+	<td>id
+	<br/>label
+	<br/>width
+	<br/>height
+	<br/>border
+	</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>list</td>
+	<td>id
+	<br/>label
+	</td>
+	<td>onclick</td>
+	<td></td>
+	<td></td>
+</tr>
+<tr>
+	<td>text</td>
+	<td>id
+	<br/>label
+	<br/>width
+	<br/>height
+	</td>
+	<td>onclick</td>
+	<td></td>
+	<td></td>
+</tr>
+<tr>
+	<td>button</td>
+	<td>id
+	<br/>label
+	<br/>width
+	<br/>height
+	</td>
+	<td>onclick</td>
+	<td></td>
+	<td></td>
+</tr>
+<tr>
+	<td>menubar</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>menu</td>
+	<td></td>
+</tr>
+<tr>
+	<td>menu</td>
+	<td>id<br/>type<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>menuitem</td>
+	<td></td>
+</tr>
+<tr>
+	<td>menuitem</td>
+	<td>id<br/>label<br/>type<br/>selected<br/>checked</td>
+	<td>onselect<br/>oncheck</td>
+	<td>menu</td>
+	<td></td>
+</tr>
+<tr>
+	<td>toolbar</td>
+	<td>id<br/>type<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>toolitem</td>
+	<td></td>
+</tr>
+<tr>
+	<td>toolitem</td>
+	<td>id<br/>label<br/>type<br/>selected</td>
+	<td>onselect</td>
+	<td></td>
+	<td></td>
+</tr>
+<tr>
+	<td>tree</td>
+	<td>id<br/>type<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>treeitem</td>
+	<td></td>
+</tr>
+<tr>
+	<td>treeitem</td>
+	<td>id<br/>label<br/>type<br/>selected</td>
+	<td>onselect</td>
+	<td>treeitem</td>
+	<td></td>
+</tr>
+<tr>
+	<td>statusbar</td>
+	<td>id<br/>fields<br/>text</td>
+	<td>onchange</td>
+	<td></td>
+	<td></td>
+</tr>
+
+<tr>
+	<td>grid</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td></td>
+	<td></td>
+</tr>
+<tr>
+	<td>calendar</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td></td>
+	<td></td>
+</tr>
+<tr>
+	<td>editor</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>stc_editor</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>canvas</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>region</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>pen</td>
+	<td>id<br/>label<br/>width<br/>height</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>gl</td>
+	<td>id</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+<tr>
+	<td>glu</td>
+	<td>id</td>
+	<td></td>
+	<td>any</td>
+	<td></td>
+</tr>
+</tbody>
+</table>
+
+<p class="copyright">Copyright Steve Davis 2009. All rights reserved. (Until I figure out the correct License...)</p>
+</body>
+</html>

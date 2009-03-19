@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<gx>
+	<frame 
+		id="win"
+		title="GX Demo" 
+		icon="feed.png"
+		width="800" 
+		height="600"
+		onload="init"
+		onunload="on_close">
+		<menubar>
+			<menu id="file" label="File">
+				<item id="open" label="Open..." onselect="on_open"/>
+				<item id="font" label="Font..." onselect="on_font"/>
+				<separator/>
+				<item id="quit" label="Quit" onselect="on_close"/>
+			</menu>
+			<menu id="help" label="Help">
+				<item id="about" label="About..." onselect="on_about"/>
+			</menu>
+		</menubar>
+		<panel fill="true" align="center">
+		<checkbox id="survey" border="5" label="I like building Great User Interfaces with Erlang GX!" onselect="on_message"/>
+		<line fill="true"/>
+		<panel id="buttons" align="center" orientation="horizontal" color="green" fill="true">
+			<button id="hello_button" label="Hello GX!" onclick="on_click"/>
+			<button id="second_button" label="Hello Again!" onclick="on_message"/>
+		</panel>
+		<editor id="editor"/>
+		</panel>
+		<statusbar text="Welcome to GX"/>
+	</frame>
+</gx>

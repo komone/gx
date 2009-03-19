@@ -5,8 +5,8 @@
 -version("alpha").
 -author('steve@simulacity.com').
 
--include("gx.hrl").
--include("gx_registry.hrl").
+-include("../include/gx.hrl").
+-include("gx_events.hrl").
 -include_lib("wx/include/wx.hrl").
 
 -compile(export_all).
@@ -62,7 +62,7 @@ info() ->
 		undefined -> Commands = [];
 		_ -> Commands = ets:tab2list(?GX_COMMANDS)
 		end,
-		{gx_registry, [{components, length(Components), Components}, 
+		{gx_registry, [{components, length(Components) - 1, Components}, 
 		{commands, length(Commands), Commands}]}
 	end.
 
@@ -107,7 +107,7 @@ add_command(GxName, GxCallback) ->
 		ignored;
 	false -> 
 		Command = ?wxID_HIGHEST + 1001 + ets:info(?GX_COMMANDS, size),
-		ets:insert_new(?GX_COMMANDS, {{self(), Command}, GxCallback})
+		ets:insert_new(?GX_COMMANDS, {{self(), Command}, {GxName, GxCallback}})
 	end,
 	%io:format("[COMMAND] '~p' [~p] ~p~n", [CommandID, GxName, Handler]),
 	Command.
@@ -118,7 +118,7 @@ add_command(GxName, GxCallback) ->
 lookup_command(Command) ->
 	Process = self(),
 	case ets:lookup(?GX_COMMANDS, {Process, Command}) of 
-	[{{Process, Command}, {_Type, Callback}}] -> Callback;
+	[{{Process, Command}, {GxName, {_Type, Callback}}}] -> {GxName, Callback};
 	_ -> undefined
 	end.
 
@@ -163,16 +163,22 @@ get_string(Key, Default, Opts) ->
 %%
 
 %%
+get_resource(image, Opts) -> 
+	{ok, Image} = find_resource(get_option(image, "gx.png", Opts)),
+	Type = image_type(filename:extension(Image)),
+	wxBitmap:new(Image, [{type, Type}]);
+%%
 get_resource(icon, Opts) -> 
 	{ok, Icon} = find_resource(get_option(icon, "wxe.xpm", Opts)),
-	Type = icon_type(filename:extension(Icon)),
+	Type = image_type(filename:extension(Icon)),
 	wxIcon:new(Icon, [{type, Type}]).
 
 %% Add more as necessary, not just because you can
-icon_type(".xpm") -> ?wxBITMAP_TYPE_XPM;
-icon_type(".png") -> ?wxBITMAP_TYPE_PNG;
-icon_type(".bmp") -> ?wxBITMAP_TYPE_BMP;
-icon_type(_)      -> ?wxBITMAP_TYPE_INVALID.
+image_type(".xpm") -> ?wxBITMAP_TYPE_XPM;
+image_type(".png") -> ?wxBITMAP_TYPE_PNG;
+image_type(".jpg") -> ?wxBITMAP_TYPE_JPEG;
+image_type(".bmp") -> ?wxBITMAP_TYPE_BMP;
+image_type(_)      -> ?wxBITMAP_TYPE_INVALID.
 
 
 %% Directories to check, in order:

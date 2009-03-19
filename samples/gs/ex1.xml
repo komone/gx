@@ -1,18 +1,19 @@
 <?xml version="1.0"?>
 <gx>
-	<frame id="ex1" title="Sizer Problems" onunload="on_close">
-	<menubar>
-		<menu label="File">
-			<item label="Quit" onselect="on_close"/>
-		</menu>
-		</menubar>
-	<panel id="outline" orientation="horizontal">
-		<box fill="true" border="10" label="Test Box">
-			<button id="butt" label="Press Me" border="5" align="left" onclick="clicked" />
-			<button id="butt2" label="Make Error" border="5" onclick="on_click" />
-		</box>
-		<editor id="editor" border="20" fill="false" value="Type here" />
-	</panel>
-	<statusbar/>
+	<frame id="win" 
+		title="ex1"
+		width="200" 
+		height="300" 
+		pos="default"
+		onload="init" 
+		onunload="close">
+		<panel fill="true" align="center">
+			<box width="200" height="300"  align="center" orientation="horizontal">
+				<button id="first" label="Press Me!" border="5" fill="true" onclick="click"/>
+				<button id="second" label="Another" border="5" align="right" fill="true" onclick="click"/>
+			</box>
+			<grid fill="true" border="10" width="250" height="150"/>
+		</panel>
+		<statusbar/>
 	</frame>
 </gx>

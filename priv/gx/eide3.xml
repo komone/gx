@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<gx>
+<frame title="EIDE">
+	<statusbar/>
+	<panel orientation="horizontal">
+	<tabs>
+	<tab>
+		<editor label="first"/>
+	</tab>
+	</tabs>
+	</panel>
+</frame>
+</gx>

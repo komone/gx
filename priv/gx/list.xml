@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<gx>
+	<frame title="Example: radiobox" onunload="on_close">
+		<statusbar/>
+		<panel>
+			<list label="Priority" fill="true" border="5" onselect="on_message">
+				<item label="First"/>
+				<item label="Second"/>
+				<item label="Third"/>
+			</list>
+			<button align="center" border="5" onclick="on_message"/>
+		</panel>
+	</frame>
+</gx>

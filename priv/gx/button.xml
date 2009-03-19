@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<gx>
+<window title="GX Tutorial">
+	<menubar>
+		<menu label="File">
+			<item label="Exit" onselect="on_close"/>
+		</menu>
+	</menubar>
+	<statusbar/>
+	<panel>
+	<button label="Hello, World!" border="10" align="center" onclick="on_click" />
+	</panel>
+</window>
+</gx>

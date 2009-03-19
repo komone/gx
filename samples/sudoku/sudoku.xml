@@ -5,7 +5,8 @@
 			icon="feed.png"
 			width="400"
 			height="400"
-			onload="init_game"
+			pos="center"
+			onload="init"
 			onunload="on_close">
 		<menubar>
 			<menu id="file" label="File">
@@ -20,37 +21,35 @@
 				<item label="Quit Game" onselect="on_exit"/>
 			</menu>
 			<menu id="options" label="Options"><!-- item or menuitem? -->
-				<menuitem id="trivial" type="radio" label="Level: Trivial" onselect="set_trivial"/>
-				<menuitem id="easy" type="radio" label="Level: Easy" onselect="set_easy"/>
-				<menuitem id="normal" type="radio" label="Level: Normal" onselect="set_normal" selected="true" />
-				<menuitem id="hard" type="radio" label="Level: Hard" onselect="set_hard"/>
-				<menuitem id="hardest" type="radio" label="Level: Hardest" onselect="set_hardest"/>
+				<item id="trivial" type="radio" label="Level: Trivial" onselect="set_trivial"/>
+				<item id="easy" type="radio" label="Level: Easy" onselect="set_easy"/>
+				<item id="normal" type="radio" label="Level: Normal" onselect="set_normal" selected="true" />
+				<item id="hard" type="radio" label="Level: Hard" onselect="set_hard"/>
+				<item id="hardest" type="radio" label="Level: Hardest" onselect="set_hardest"/>
 				<separator/>
-				<menuitem id="errors" label="Show Errors" type="checkbox" onselect="show_errors" selected="true" />
+				<item id="errors" label="Show Errors" type="checkbox" onselect="show_errors" selected="true" />
 			</menu>
 			<menu id="help" label="Help">
 				<item label="Rules" onselect="show_rules"/>
 				<item label="About" onselect="aboutbox"/>
 			</menu>
 		</menubar>
-		<panel id="tools"
-			orientation="horizontal|vertical"
+		<panel id="body" fill="true">
+		<panel fill="true">
+		<panel id="tools" 
+			align="center"
+			orientation="horizontal"
 			scrolling="vertical|horizontal|both|auto|none">
-			<button id="new_btn" label="New Game" 
-				align="left" 
-				fill="true"
-				border="simple|single|double|raised|sunken|themed|none"
-				padding="10"
-				onclick="new" />
-				<!-- align="fill" or fill="true" fill="true|false|constrain" ??? -->
+			<!--border?=simple|single|double|raised|sunken|themed|none" -->
+			<button id="new_btn" label="New Game" onclick="new" />
 			<button label="Empty Board" onclick="empty" />
 			<button label="Clear" onclick="clear" />
 			<button label="Hint" onclick="hint" />
 		</panel>
-		<panel id="game">
-			<!--editor id="board" label="Sudoku" /-->
+		</panel>
+		<editor fill="true" id="board" label="Sudoku"/>
 		</panel>
 		<statusbar text="Good Luck!"/>
 	</frame>
-	<dialog id="dialog_app"></dialog>
+	<!--dialog id="dialog_app"></dialog-->
 </gx>

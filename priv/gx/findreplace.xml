@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<gx>
+<dialog id="findreplace" title="Find/Replace" pos="center" onunload="on_close">
+	<panel>
+		<panel layout="grid" cols="2" rows="2" border="5">
+			<text border="5" label="Find:"/>
+			<combo align="right" border="1"/>
+			<text border="5" label="Replace with:"/>
+			<combo align="right" border="1"/>
+		</panel>
+		<panel layout="horizontal" fill="true">	
+			<radiobox border="3" label="Direction" fill="true">
+				<item label="Forward"/>
+				<item label="Backward"/>
+			</radiobox>
+			<radiobox border="3" label="Scope" fill="true">
+				<item label="All"/>
+				<item label="Selected Lines"/>
+			</radiobox>
+		</panel>
+		<box label="Options" border="5">
+		<panel layout="grid" cols="2" rows="3">
+			<checkbox border="3" label="Case Sensitive"/>
+			<checkbox border="3" label="Wrap Search"/>
+			<checkbox border="3" label="Whole Word"/>
+			<checkbox border="3" label="Incremental"/>
+			<checkbox border="3" label="Regular Expressions"/>
+		</panel>
+		</box>
+		<panel layout="grid" cols="2" rows="2" fill="true" border="8">
+			<button border="2" align="center" label="Find" fill="true"/>
+			<button border="2" align="center" label="Replace/Find" fill="true"/>
+			<button border="2" align="center" label="Replace" fill="true"/>
+			<button border="2" align="center" label="Replace All" fill="true"/>
+		</panel>
+		<button id="closebutton" border="10" align="right" label="Close" onclick="on_close"/>
+	</panel>
+</dialog>
+</gx>

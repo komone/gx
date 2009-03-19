@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<gx>
+<frame title="EIDE">
+	<panel color="green" orientation="horizontal">
+		<panel color="yellow" fill="true" border="5">
+			<button id="tree" width="200" label="Source Tree" fill="true" border="5"/>
+		</panel>
+		<panel id="main" fill="true" color="magenta">
+			<editor width="400" height="200" fill="true"/>
+			<panel id="console" fill="false" align="right" width="400" height="100" border="5" color="red"/>
+		</panel>
+	</panel>
+	<menubar>
+		<menu label="File">
+			<item label="New"/>
+			<item label="Open..."/>
+			<separator/>
+			<item label="Save"/>
+			<item label="Save As..."/>
+			<separator/>
+			<item label="Exit"/>
+		</menu>
+		<menu label="Edit">
+			<item label="Cut"/>
+			<item label="Copy"/>
+			<item label="Paste"/>
+			<item label="Paste As..."/>
+			<separator/>
+			<item label="Select All"/>
+		</menu>
+		<menu label="Help">
+			<item label="Contents"/>
+			<item label="Web..."/>
+			<separator/>
+			<item label="About EIDE..."/>
+		</menu>
+	</menubar>
+	<statusbar/>
+</frame>
+</gx>

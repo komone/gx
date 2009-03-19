@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<gx>
+<frame>
+	<panel border="20">
+		<text align="center" label="Hello, World"/>
+		<line width="200" height="2"/>
+	</panel>
+</frame>
+</gx>
