@@ -1,28 +1,241 @@
+%%
+%% GX Framework
+%% Copyright 2009 <steven.charles.davis@gmail.com>. All rights reserved.
+%% LICENSE: The correct license type has not yet been determined.
+%%
 -module(gx_map).
 
+-include_lib("wx/include/wx.hrl").
+% IMPL: wxe.hrl is hidden so redefine...
+-record(wx_ref, {ref, type, state=[]}).
+
 -compile(export_all).
+-export([get/3, set/3, color/1, color/2, color/3]).
 
+
+%%% DECOMMISSIONED!
+process(WxRef = #wx_ref{type=Module}, FType, {Key, Value}) ->
+	case gx_map:FType(Module) of
+	undefined -> {no_gx_map, {FType, Module, Key}};
+	FMap ->
+		[{Function, ArgDef}] = [Definition || {FKey, Definition} <- FMap, FKey =:= Key],
+		case ArgDef of
+		undefined -> 
+			{no_gx_map, {FType, Module, Key}};
+		_ ->
+			Args = map_args(ArgDef, [{wx_ref, WxRef}, {value, Value}]),
+			io:format("CALL ~p:~p(~p)~n", [Module, Function, Args]),
+			erlang:apply(Module, Function, Args)
+		end
+	end.
+%%% DECOMMISSIONED!
+map_args(ArgDef, Opts) ->
+	Pred = fun(Arg, Options) -> 
+		[Result] = [Value || {Key, Value} <- Options, Key == Arg],
+		Result
+	end,
+	[Pred(Arg, Opts) || Arg <- ArgDef].
+
+%
+get(WxRef = #wx_ref{type=Module}, Function, Options) ->
+	gx_map:get(Module, Function, Options, WxRef). 
+set(WxRef = #wx_ref{type=Module}, Function, Options) ->
+	gx_map:set(Module, Function, Options, WxRef). 
+
+
+% a first go at getter/setters for properties, rather than "undefined" try returning ancestor...?
+%get(wxStaticLine, Key) -> map(Key, wxControl, [{vertical, {isVertical, 1}}, {default, {getDefaultSize, 0}}]);
+get(wxFrame, size, [], WxRef) -> wxFrame:getSize(WxRef);
+get(wxFrame, title, [], WxRef) -> wxFrame:getTitle(WxRef);
+get(wxFrame, Function, Opts, WxRef) -> get(wxTopLevelWindow, Function, Opts, WxRef);
+get(wxStaticText, label, [], WxRef) -> wxStaticText:getLabel(WxRef);
+get(wxStaticText, Function, Opts, WxRef) -> get(wxControl, Function, Opts, WxRef);
+%% TODO: many more
+get(_, _, _, _) -> undefined.
+
+% a first go at getter/setters for properties, rather than "undefined" try returning ancestor...?
+set(wxFrame, pos, center, WxRef) -> wxFrame:centerOnScreen(WxRef);
+set(wxFrame, show, Bool, WxRef) when is_boolean(Bool) -> wxFrame:show(WxRef, [{show, Bool}]);
+set(wxFrame, show, [], WxRef) -> wxFrame:show(WxRef);
+set(wxFrame, title, String, WxRef) when is_list(String) -> wxFrame:setTitle(WxRef, String);
+set(wxFrame, Function, Opts, WxRef) -> set(wxWindow, Function, Opts, WxRef);
+set(wxStaticText, label, [], WxRef) -> wxStaticText:getLabel(WxRef);
+set(wxStaticText, Function, Opts, WxRef) -> set(wxControl, Function, Opts, WxRef);
+%% TODO: many more
+set(_, _, _, _) -> undefined.
+
+
+%% TODO: These need double checking!!
 %% Map GX to WX types
-type(frame) -> wxFrame;
-type(dialog) -> wxDialog;
-type(window) -> wxWindow;
-type(_) -> undefined.
+wtype(frame) -> wxFrame;
+wtype(window) -> wxFrame;
+wtype(dialog) -> wxDialog;
+wtype(panel) -> wxPanel;
+wtype(checkbox) -> wxCheckBox;
+wtype(checklist) -> wxCheckListBox;
+wtype(splashscreen) -> wxSplashScreen;
+wtype(radiobox) -> wxRadioBox;
+wtype(radiobutton) -> wxRadioButton;
+wtype(choice) -> wxChoice;
+wtype(list) -> wxListBox;
+wtype(image) -> wxStaticBitmap;
+wtype(combo) -> wxComboBox;
+wtype(box) -> wxPanel; % with a BoxSizer maybe panel box="true"?
+wtype(slider) -> wxSlider;
+wtype(spinner) -> wxSpinCtrl;
+wtype(text) -> wxStaticText;
+wtype(line) -> wxStaticLine;
+wtype(entry) -> wxTextCtrl;
+wtype(editor) -> wxStyledTextCtrl;
+wtype(_) -> undefined.
 
-%% NOTE: I am not at all sure about this approach....
-%% The basic map function
-map(Key, _, [{Key, Value}|_]) -> Value;
-map(Key, Default, [{_, _}|T]) -> map(Key, Default, T);
-map(_, Default, []) -> Default.
+gtype(wxButton) -> button;
+gtype(wxFrame) -> window;
+gtype(wxDialog) -> dialog;
+gtype(wxPanel) -> panel;
+gtype(wxCheckBox) -> checkbox;
+gtype(wxCheckListBox) -> checklist;
+gtype(wxSplashScreen) -> splashscreen;
+gtype(wxRadioBox) -> radiobox;
+gtype(wxRadioButton) -> radiobutton;
+gtype(wxChoice) -> wxChoice;
+gtype(wxListBox) -> list;
+gtype(wxStaticBitmap) -> image;
+gtype(wxComboBox) -> combo;
+gtype(wxSlider) -> slider;
+gtype(wxSpinCtrl) -> spinner;
+gtype(wxStaticText) -> text;
+gtype(wxStaticLine) -> line;
+gtype(wxTextCtrl) -> entry;
+gtype(wxStyledTextCtrl) -> editor;
+gtype(_) -> undefined.
 
-% a first go at getter/setters for properties, rather than "undefined" try returning ancestor...
-get(wxStaticLine, Key) -> map(Key, wxControl, [{vertical, {isVertical, 1}}, {default, {getDefaultSize, 0}}]);
-get(wxStaticText, Key) -> map(Key, wxControl, [{label, {getLabel, 1}}]);
-get(_, _) -> undefined.
 
-set(wxStaticLine, Key) -> map(Key, wxControl, [{destroy, {destroy, 1}}]);
-set(wxStaticText, Key) -> map(Key, wxControl, [{label, {setLabel, 2}}, {wrap, {wrap, 2}}]);
-set(_, _) -> undefined.
+%%
+instance_of(#wx_ref{type=Type}, Class) ->
+	instance_of(Type, Class);
+instance_of(Type, Class) when is_atom(Type) -> 
+	case Type == Class of
+	true -> true;
+	false when Type == undefined -> false;
+	false -> instance_of(super(Type), Class)
+	end.
 
+%% More concise alternative to wxXXX:parent().
+%% Note that any object that is subclassed from
+%% wxObject will not appear on this list.
+%% Complete as of R13A
+super(wxAuiManager)          -> wxEvtHandler;
+super(wxAuiNotebook)         -> wxControl;
+super(wxBitmapButton)        -> wxButton;
+super(wxBitmapDataObject)    -> wxDataObject;
+super(wxBoxSizer)            -> wxSizer;
+super(wxBufferedDC)          -> wxMemoryDC;
+super(wxBufferedPaintDC)     -> wxBufferedDC;
+super(wxButton)              -> wxControl;
+super(wxCalendarCtrl)        -> wxControl;
+super(wxCalendarEvent)       -> wxDateEvent;
+super(wxCheckBox)            -> wxControl;
+super(wxCheckListBox)        -> wxListBox;
+super(wxChildFocusEvent)     -> wxCommandEvent;
+super(wxChoice)              -> wxControlWithItems;
+super(wxClientDC)            -> wxWindowDC;
+super(wxCloseEvent)          -> wxEvent;
+super(wxColourDialog)        -> wxDialog;
+super(wxColourPickerCtrl)    -> wxPickerBase;
+super(wxColorPickerEvent)    -> wxCommandEvent;
+super(wxComboBox)            -> wxControlWithItems;
+super(wxCommandEvent)        -> wxEvent;
+super(wxContextMenuEvent)    -> wxCommandEvent;
+super(wxControl)             -> wxWindow;
+super(wxControlWithItems)    -> wxControl;
+super(wxCursor)              -> wxBitmap;
+super(wxDateEvent)           -> wxCommandEvent;
+super(wxDatePickerCtrl)      -> wxPickerBase;
+super(wxDialog)              -> wxTopLevelWindow;
+super(wxDirDialog)           -> wxDialog;
+super(wxDirPickerCtrl)       -> wxPickerBase;
+super(wxDisplayChangedEvent) -> wxEvent;
+super(wxEraseEvent)          -> wxEvent;
+super(wxFileDataObject)      -> wxDataObject;
+super(wxFileDialog)          -> wxDialog;
+super(wxFileDirPickerEvent)  -> wxCommandEvent;
+super(wxFilePickerCtrl)      -> wxPickerBase;
+super(wxFindReplaceDialog)   -> wxDialog;
+super(wxFlexGridSizer)       -> wxGridSizer;
+super(wxFocusEvent)          -> wxEvent;
+super(wxFontDialog)          -> wxDialog;
+super(wxFontPickerCtrl)      -> wxPickerBase;
+super(wxFontPickerEvent)     -> wxCommandEvent;
+super(wxFrame)               -> wxTopLevelWindow;
+super(wxGBSizerItem)         -> wxSizerItem;
+super(wxGLCanvas)            -> wxWindow;
+super(wxGauge)               -> wxControl;
+super(wxGenericDirCtrl)      -> wxControl;
+super(wxGraphicsBrush)       -> wxGraphicsObject;
+super(wxGraphicsContext)     -> wxGraphicsObject;
+super(wxGraphicsFont)        -> wxGraphicsObject;
+super(wxGraphicsMatrix)      -> wxGraphicsObject;
+super(wxGraphicsPath)        -> wxGraphicsObject;
+super(wxGraphicsPen)         -> wxGraphicsObject;
+super(wxGrid)                -> wxScrolledWindow;
+super(wxGridBagSizer)        -> wxFlexGridSizer;
+super(wxGridEvent)           -> wxNotifyEvent;
+super(wxGridSizer)           -> wxSizer;
+super(wxHelpEvent)           -> wxEvent;
+super(wxIcon)                -> wxBitmap;
+super(wxIconizeEvent)        -> wxEvent;
+super(wxIdleEvent)           -> wxEvent;
+super(wxJoystickEvent)       -> wxEvent;
+super(wxKeyEvent)            -> wxEvent;
+super(wxListBox)             -> wxControlWithItems;
+super(wxListCtrl)            -> wxControl;
+super(wxListEvent)           -> wxNotifyEvent;
+super(wxListView)            -> wxControl;
+super(wxMDIChildFrame)       -> wxFrame;
+super(wxMDIChildWindow)      -> wxWindow;
+super(wxMDIParentFrame)      -> wxFrame;
+super(wxMaximizeEvent)       -> wxEvent;
+super(wxMemoryDC)            -> wxDC;
+super(wxMenu)                -> wxEvtHandler;
+super(wxMenuBar)             -> wxWindow;
+super(wxMenuEvent)           -> wxEvent;
+super(wxMessageDialog)       -> wxDialog;
+super(wxMiniFrame)           -> wxFrame;
+super(wxMirrorDC)            -> wxDC;
+super(wxMouseCaptureChangedEvent) -> wxEvent;
+super(wxMouseEvent)          -> wxEvent;
+super(wxMoveEvent)           -> wxEvent;
+super(wxMultiChoiceDialog)   -> wxDialog;
+super(wxNavigationKeyEvent)  -> wxEvent;
+super(wxNcPaintEvent)        -> wxEvent;
+
+%% COMPLETE TO HERE
+super(wxNotebook)            -> wxControl;
+super(wxPaintDC)             -> wxWindowDC;
+super(wxPanel)               -> wxWindow;
+super(wxPreviewCanvas)       -> wxScrolledWindow;
+super(wxProgressDialog)      -> wxDialog;
+super(wxRadioBox)            -> wxControlWithItems;
+super(wxScrollBar)           -> wxControl;
+super(wxScrolledWindow)      -> wxPanel;
+super(wxSlider)              -> wxControl;
+super(wxSpinCtrl)            -> wxControl;
+super(wxSplashScreen)        -> wxFrame;
+super(wxStaticBox)           -> wxControl;
+super(wxStaticLine)          -> wxControl;
+super(wxStaticText)          -> wxControl;
+super(wxStatusBar)           -> wxWindow;
+super(wxStyledTextCtrl)      -> wxControl;
+super(wxTextCtrl)            -> wxControl;
+super(wxTextEntryDialog)     -> wxDialog;
+super(wxToggleButton)        -> wxControl;
+super(wxToolBar)             -> wxControl;
+super(wxTopLevelWindow)      -> wxWindow;
+super(wxTreeCtrl)            -> wxControl;
+super(wxWindow)              -> wxEvtHandler;
+super(wxWindowDC)            -> wxDC;
+super(_)                     -> undefined.
 
 %% ATTRIBUTE COLOR NAMES
 %% HTML 4: aqua, black, blue, fuchsia, gray, green, lime, maroon, 

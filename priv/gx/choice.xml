@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <gx>
 	<frame title="choice - Example" onunload="on_close">
-		<statusbar/>
+		<statusbar>Test me</statusbar>
 		<panel>
 			<choice value="Priority" fill="true" border="5" onselect="on_message">
 				<item label="First"/>

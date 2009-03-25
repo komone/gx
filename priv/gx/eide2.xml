@@ -1,15 +1,6 @@
 <?xml version="1.0"?>
 <gx>
 <frame title="EIDE">
-	<panel color="green" orientation="horizontal">
-		<panel color="yellow" fill="true" border="5">
-			<button id="tree" width="200" label="Source Tree" fill="true" border="5"/>
-		</panel>
-		<panel id="main" fill="true" color="magenta">
-			<editor width="400" height="200" fill="true"/>
-			<panel id="console" fill="false" align="right" width="400" height="100" border="5" color="red"/>
-		</panel>
-	</panel>
 	<menubar>
 		<menu label="File">
 			<item label="New"/>
@@ -36,5 +27,17 @@
 		</menu>
 	</menubar>
 	<statusbar/>
+	<panel>
+	<editor height="20" width="600"/>
+	<panel fill="true" color="green" layout="row">
+		<panel color="yellow" fill="true" border="5">
+			<button id="tree" width="200" label="Source Tree" fill="true" border="5"/>
+		</panel>
+		<panel id="main" fill="true" color="magenta">
+			<editor height="200" fill="true"/>
+			<panel id="console" fill="true" align="right" height="100" border="5" color="red"/>
+		</panel>
+	</panel>
+	</panel>
 </frame>
 </gx>

@@ -1,0 +1,4 @@
+{gui, gx_demo, [
+	{window, [{pos, center}, {onload, splash}], []},
+	{dialog, [], []}
+]}.

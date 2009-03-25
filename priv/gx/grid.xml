@@ -1,16 +1,37 @@
 <?xml version="1.0"?>
 <gx>
-<window title="GX Tutorial">
-	<statusbar/>
+<dialog title="GX Tutorial">
 	<panel>
+	<editor fill="true"/>
 	<box align="right" border="5" label="Buttons" >
-		<panel layout="grid" align="center">
-				<button id="A1" label="A1"/>
-				<button id="A2" label="A2"/>
-				<button id="A3" label="A3"/>
-				<button id="A4" label="A4"/>
+		<!--label>This is a panel</label-->
+		<panel layout="grid" rows="5" cols="4" align="center">
+				<button id="A1" label="Cls"/>
+				<button id="A2" label="Bck"/>
+				<text label=""/>
+				<button id="A3" label="Close"/>
+
+				<button id="A1" label="_7"/>
+				<button id="A2" label="_8"/>
+				<button id="A3" label="_9"/>
+				<button id="A3" label="/"/>
+				
+				<button id="A1" label="_4"/>
+				<button id="A2" label="_5"/>
+				<button id="A3" label="_6"/>
+				<button id="A3" label="*"/>
+				
+				<button label="_1"/>
+				<button label="_2"/>
+				<button label="_3"/>
+				<button label="-"/>
+				
+				<button label="_0"/>
+				<button label="."/>
+				<button label="="/>
+				<button label="+"/>
 		</panel>
 	</box>
 	</panel>
-</window>
+</dialog>
 </gx>

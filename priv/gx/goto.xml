@@ -1,23 +1,22 @@
 <?xml version="1.0"?>
 <gx>
-	<frame title="Go To Class" pos="center">
-		<statusbar/>
-		<panel>
-			<panel layout="horizontal">
-				<text border="10" label="Class Name"/>
-				<editor border="10" height="30"/>
-			</panel>
-			<text border="10" label="Matching Classes"/>
-			<editor border="10" fill="true" />
-			<panel layout="horizontal">
-				<checkbox border="10" label="Case Sensitive"/>
-				<checkbox border="10" label="Nested Classes"/>
-				<checkbox border="10" label="Non-Project Classes"/>
-			</panel>
-			<panel layout="horizontal" align="right">
-				<button border="10" label="OK"/>
-				<button border="10" label="Close"/>
-			</panel>
+	<dialog title="Go To Class" pos="center">
+	<panel>
+		<panel layout="row">
+			<text border="10" label="Class Name"/>
+			<editor border="10" height="30"/>
 		</panel>
-	</frame>
+		<text border="5" label="Matching Classes"/>
+		<editor border="5" fill="true" />
+		<panel layout="row">
+			<checkbox border="10" label="Case Sensitive"/>
+			<checkbox border="10" label="Nested Classes"/>
+			<checkbox border="10" label="Non-Project Classes"/>
+		</panel>
+		<panel layout="row" align="right">
+			<button border="10" label="OK"/>
+			<button border="10" label="Close"/>
+		</panel>
+	</panel>
+	</dialog>
 </gx>

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<gx>
+	<window>
+		<menubar>
+			<menu label="File">
+				<item label="Quit" onselect="on_close"/>
+			</menu>
+		</menubar>
+		<statusbar/>
+		<panel layout="row">
+			<panel fill="true">
+				<tree type="project" label="Eide">
+					<treeitem type="workset">this.xml</treeitem>
+					<treeitem type="menu">that.xml</treeitem>
+				</tree>
+			</panel>
+			<panel fill="true">
+				<panel fill="true">
+					<editor fill="true">Type text here</editor>
+				</panel>
+				<panel height="100" fill="true"/>
+			</panel>
+		</panel>
+	</window>
+</gx>

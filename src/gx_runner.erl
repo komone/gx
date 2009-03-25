@@ -1,4 +1,7 @@
 %%
+%% GX Framework
+%% Copyright 2009 <steven.charles.davis@gmail.com>. All rights reserved.
+%% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_runner).
 -vsn("0.1").
@@ -21,12 +24,15 @@ on_init(_Gx, Event) ->
 	print(Event).
 
 on_close(_Gx, Event) -> 
-	print(Event), exit.
+	print(Event), 
+	exit.
 
 on_exit(_Gx, Event) -> 
-	print(Event).
+	print(Event),
+	exit.
 
-on_about(Gx, _Event) ->
+on_about(Gx, Event) ->
+	print(Event),
 	Attrs = ?MODULE:module_info(attributes),
 	Version = proplists:get_value(vsn, Attrs),
 	Author = proplists:get_value(author, Attrs),
@@ -55,7 +61,7 @@ on_click(_Gx, _Event) ->
 	io:format("[GXRUNNER] Clicked!~n", []).
 
 print(Message) ->
-	io:format("[GXRUNNER] ~p~n", [Message]).
+	io:format("~p ~p~n", [self(), Message]).
 
 %%
 %% Application Internals

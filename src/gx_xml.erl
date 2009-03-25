@@ -1,36 +1,44 @@
 %%
+%% GX Framework
+%% Copyright 2009 <steven.charles.davis@gmail.com>. All rights reserved.
+%% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_xml).
 -author('steve@simulacity.com').
+-vsn("0.1.0").
 
 -include_lib("xmerl/include/xmerl.hrl").
--export([load/1, gen/1]).
+-export([load/1, generate/1]).
 
-%% Loads a gxml file and returns it as a gx term
-% NOTE: this returns a list as you may wish to use 
-% more than one window, specify dialogs, or have 
-% replaceable component trees at runtime...
+%% Utility function to generate gx '.gui' term file from GXML
+%% NOTE: Called by gx:gen/2
+%% IMPL: Using ~w instead of ~p would reduce the .gui file size
+generate(File) ->
+	{ok, UI} = load(File),
+	TermFile = filename:basename(File, ".xml") ++ ".gui",
+	Terms = [io_lib:format("~p.~n", [Component]) || Component <- UI],
+	ok = file:write_file(TermFile, Terms).
+
+%% Loads a GXML file and returns it as a valid GX Term
+%% NOTE: this returns a list as you may wish to use more than one window, 
+%% specify dialogs, or have replaceable component trees at runtime...
 load(File) ->
 	{ok, Bin} = file:read_file(File),
 	Markup = binary_to_list(Bin),
 	{Xml, []} = xmerl_scan:string(Markup, [{space, normalize}]),
 	case Xml#xmlElement.name of 
 	gx -> 
-		Term = convert(Xml#xmlElement.content, []),
-		{ok, Term};
+		Terms = convert(Xml#xmlElement.content, []),
+		GxTerms = collapse(Terms, []),
+		{ok, GxTerms};
 	_ -> {error, invalid_file}
 	end.
-	
-%% Utility
-%% TODO: only a single term is currently allowed
-gen(File) ->
-	{ok, [UI]} = load(File),
-	TermFile = filename:basename(File, ".xml") ++ ".gui",
-	ok = file:write_file(TermFile, io_lib:format("~p.~n", [UI])).
 
 %%
 %% Internal API
 %%
+
+%% Transform the scanned XMERL term  to a GX term
 convert([H = #xmlElement{} | T], Acc) ->
 	Name = H#xmlElement.name,
 	Attributes = convert(H#xmlElement.attributes, []),
@@ -49,7 +57,10 @@ convert([_|T], Acc) ->
 convert([], Acc) ->
 	lists:reverse(Acc).
 
-%% convert booleans, integers (and later do atoms too)
+%% All attributes present as strings from xmerl, here we convert booleans and
+%% integers to thier fundamental type
+%% IMPL: what about boolean names that were intended to be strings?
+%% TODO: perhaps later, atoms etc too?
 get_value(Name, "true") -> {Name, true};
 get_value(Name, "false") -> {Name, false};
 get_value(Name, Value) when is_list(Value) -> 
@@ -60,3 +71,43 @@ get_value(Name, Value) when is_list(Value) ->
 	end;
 get_value(Name, Value) ->
 	{Name, Value}.
+	
+%% 'collapse' postprocesses text and item elements in the term generated 
+%% by 'convert', resulting in a valid GX term
+%% 1) Collapses 'item" tuples into a list of strings as the 'items' option
+%% 2) Moves the first text value of the child into the parent 'value' option
+%% TODO: This series of patterns is somewhat fragile as it introduces an 
+%% explicit dependency on component type names, affecting maintenance
+%% IMPL: GXML may contain more than one xmlText element, however we only take
+%% the *first* xmlText element as the 'value' attribute
+collapse([Component = {list, _, _} | T], Acc) ->
+	collapse(T, [collapse_items(Component) | Acc]);
+collapse([Component = {choice, _, _} | T], Acc) ->
+	collapse(T, [collapse_items(Component) | Acc]);
+collapse([Component = {combo, _, _} | T], Acc) ->
+	collapse(T, [collapse_items(Component) | Acc]);
+collapse([Component = {radiobox, _, _} | T], Acc) ->
+	collapse(T, [collapse_items(Component) | Acc]);
+collapse([Component = {checklist, _, _} | T], Acc) ->
+	collapse(T, [collapse_items(Component) | Acc]);
+collapse([{Type, Opts, Children}|T], Acc) ->
+	Kids = [X || X <- Children, is_tuple(X)],
+	Strings = [X || X <- Children, is_list(X)],
+	Opts1 = collapse_text(Strings, Opts),
+	Kids1 = collapse(Kids, []),
+	collapse(T, [{Type, Opts1, Kids1}|Acc]);
+collapse([], Acc) ->
+	lists:reverse(Acc).
+
+%% Items are top-level elements in GXML, but as GX terms they should be a list
+%% of string-labeled 'items'
+collapse_items({Type, Opts, Children}) ->
+	Choices = [collapse_item(Attrs, Value) || {item, Attrs, Value} <- Children],
+	{Type, [{items, Choices}|Opts], []}.
+%	
+collapse_item(Attrs, []) -> proplists:get_value(label, Attrs);
+collapse_item(_, [Text|_]) when is_list(Text) -> Text.
+
+%% IMPL: Take only the first text element
+collapse_text([Text|_], Opts) -> [{value, Text}|Opts];
+collapse_text([], Opts) -> Opts.

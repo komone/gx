@@ -1,18 +1,26 @@
 %%
-%%
+%% GX Framework
+%% Copyright 2009 <steven.charles.davis@gmail.com>. All rights reserved.
+%% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_registry).
 -version("alpha").
 -author('steve@simulacity.com').
 
 -include("../include/gx.hrl").
--include("gx_events.hrl").
 -include_lib("wx/include/wx.hrl").
+
+% ETS Table Names
+-define(GX_COMPONENTS, gx_components).
+-define(GX_COMMANDS, gx_commands).
 
 -compile(export_all).
 -export([start/0, stop/0, info/0]).
 -export([get_option/3, get_atom/3, get_boolean/3, 
 	get_integer/3, get_string/3, get_resource/2]).
+
+%% gx_registry
+%% TODO: Replace error_logger when GX has its own gen_event log
 
 %%
 start() ->
@@ -35,6 +43,7 @@ start() ->
 			ets:new(?GX_COMMANDS, [set, named_table, public]);
 		_ -> ok
 		end,
+		
 		Root;
 	false ->
 		{error, no_smp}
@@ -50,6 +59,7 @@ stop() ->
 	undefined -> ok;
 	_ -> ets:delete(?GX_COMPONENTS)
 	end,
+	% TODO: maybe catch the "restop" error here...
 	wx:destroy().
 
 %% 
@@ -62,9 +72,20 @@ info() ->
 		undefined -> Commands = [];
 		_ -> Commands = ets:tab2list(?GX_COMMANDS)
 		end,
-		{gx_registry, [{components, length(Components) - 1, Components}, 
+		{gx_registry, [{components, length(Components), Components}, 
 		{commands, length(Commands), Commands}]}
 	end.
+
+
+%
+report_info(GxName, Component) ->
+%	error_logger:info_report([{registered_event, WxEvent}, {id, GxName}, {component, Component}, {handler, GxHandler}]),
+	error_logger:info_report([
+		{process, self()}, 
+		{created, GxName}, 
+		{component, Component}, 
+		{resource_paths, find_resource("")}]).
+
 
 %%
 add_component(undefined, Component) ->
@@ -88,8 +109,8 @@ remove_component(Name, DB) when is_atom(Name), is_atom(DB) ->
 		_ -> Acc
 		end
 	end,
-	Deleted = ets:foldr(Delete, 0, DB),
-	io:format("[DESTROY ] ~p + ~p Refs~n", [{DB, Name}, Deleted]).
+	_Deleted = ets:foldr(Delete, 0, DB).
+	% error_logger:info_report([{DB, destroy}, {Name, Deleted}]).
 
 %%
 lookup_component(Name) ->
@@ -109,7 +130,7 @@ add_command(GxName, GxCallback) ->
 		Command = ?wxID_HIGHEST + 1001 + ets:info(?GX_COMMANDS, size),
 		ets:insert_new(?GX_COMMANDS, {{self(), Command}, {GxName, GxCallback}})
 	end,
-	%io:format("[COMMAND] '~p' [~p] ~p~n", [CommandID, GxName, Handler]),
+	% error_logger:info_report([{?GX_COMMANDS, add}, {GxName, GxCallback}]),
 	Command.
 
 %% TODO?: do we also need remove_command? it would be symmetrical...
@@ -121,6 +142,7 @@ lookup_command(Command) ->
 	[{{Process, Command}, {GxName, {_Type, Callback}}}] -> {GxName, Callback};
 	_ -> undefined
 	end.
+
 
 %%
 %% Component attribute helper functions
@@ -162,6 +184,24 @@ get_string(Key, Default, Opts) ->
 %% File system resource access
 %%
 
+%% TODO: Change this as its'a complete hack!!
+load_icons() ->
+	case lookup_component(gx_icons) of
+	undefined ->
+		{ok, WxeIcon} = find_resource("wxe.xpm"),
+		IconPath = filename:join(filename:dirname(WxeIcon), "icons"),
+		{ok, Files} = file:list_dir(IconPath),
+		IconList = [filename:join(IconPath, X) || X <- Files, filename:extension(X) == ".gif"],
+		Icons = [{list_to_atom(filename:basename(Icon, ".gif")), 
+			wxBitmap:new(Icon, [{type, ?wxBITMAP_TYPE_GIF}])} || Icon <- IconList],
+		ImageList = wxImageList:new(16, 16), %, [{mask, false}, {initial_count, length(Icons)}]).
+		IconMap = [{GxName, wxImageList:add(ImageList, WxIcon)} || {GxName, WxIcon} <- Icons],
+		%% TODO: save the iconmap to ets!
+		add_component(gx_iconmap, IconMap), %% TODO: does this really belong in the component registry?
+		add_component(gx_icons, ImageList);
+	Value -> Value
+	end.
+
 %%
 get_resource(image, Opts) -> 
 	{ok, Image} = find_resource(get_option(image, "gx.png", Opts)),
@@ -176,6 +216,7 @@ get_resource(icon, Opts) ->
 %% Add more as necessary, not just because you can
 image_type(".xpm") -> ?wxBITMAP_TYPE_XPM;
 image_type(".png") -> ?wxBITMAP_TYPE_PNG;
+image_type(".gif") -> ?wxBITMAP_TYPE_GIF;
 image_type(".jpg") -> ?wxBITMAP_TYPE_JPEG;
 image_type(".bmp") -> ?wxBITMAP_TYPE_BMP;
 image_type(_)      -> ?wxBITMAP_TYPE_INVALID.
@@ -208,9 +249,11 @@ find_resource(File) ->
 	undefined -> []
 	end,
 	Candidates = lists:append([[filename:absname(File)], AppPaths, GxPaths]),
-	io:format("[RESOURCE] ~p~n", [Candidates]),
-	find_file(Candidates).
-
+	case File of %% TODO: something of a hack here to report what paths are going to be searched
+	"" -> Candidates;
+	_ -> find_file(Candidates)
+	end.
+	
 find_file([H|T]) ->
 	case filelib:is_regular(H) of
 	true -> {ok, filename:absname(H)};
@@ -218,7 +261,3 @@ find_file([H|T]) ->
 	end;
 find_file([]) ->
 	{error, resource_missing}.
-
-
-
-

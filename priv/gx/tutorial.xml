@@ -1,11 +1,12 @@
-<gx>
-	<window pos="center" title="GX Tutorial">
+<?xml version="1.0"?>
+<gx module="?maybe?" onerror="error">
+	<window id="win" pos="center" title="GX Tutorial" onunload="on_exit">
 		<!-- 
 		-->
-		<statusbar text="Welcome to GX"/>
+		<statusbar>Welcome to GX</statusbar>
 		<panel>
-			<button fill="true" border="10" label="About..." onclick="on_about" />
-			<text border="10" align="center" label="This is a text label"/>
+			<button id="about_button" fill="true" border="10" label="About..." onclick="on_about" />
+			<text border="10" align="center">This is a text label</text>
 			<checkbox label="test a checkbox" border="10" onselect="on_message" />
 			<radiobutton label="test a radiobutton" border="10" onselect="on_message" />
 		</panel>

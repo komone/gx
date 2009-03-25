@@ -1,17 +1,19 @@
 %%
-%%
+%% GX Framework
+%% Copyright 2009 <steven.charles.davis@gmail.com>. All rights reserved.
+%% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx).
--version("alpha").
+-version("0.1").
 -author('steve@simulacity.com').
 
 -include("../include/gx.hrl").
--include("gx_events.hrl").
 -include_lib("wx/include/wx.hrl").
+%% Original Definiton of wx_ref is in 'hidden' header wxe.hrl
+-record(wx_ref, {ref, type, state=[]}).
 
 -compile(export_all).
-
--export([start/2, create/1, create/3, destroy/2, get/2, set/3]).
+-export([start/2, create/1, create/3, destroy/2]).
 -export([ % Components
 	window/2, dialog/2, splashscreen/2,
 	panel/2, box/2,
@@ -20,13 +22,25 @@
 	tabs/2, editor/2, alert/3 % many more...
 ]). 
 
-% wxe.hrl is hidden so redefine...
--record(wx_ref, {ref, type, state=[]}).
+
+%% TODO: remove?
+-define(GX_WINDOW_EVENTS, [{onunload, close_window}]).
+
+%% TODO:gx
+%% Regression: Window closing no longer reliably captured, so registry leaks
+
+% Convenience
+run(File) ->
+	gx_runner:start(File).
 
 %%
 %% Core GUI startup and event loop
 %%
-
+start() ->
+	gx_registry:start().
+stop() ->
+	gx_registry:stop().
+	
 %% Spawn a GUI process instance
 start(Module, GUI) when is_atom(Module), is_list(GUI) ->
 	gx_registry:start(),
@@ -34,14 +48,18 @@ start(Module, GUI) when is_atom(Module), is_list(GUI) ->
 
 %% if we have a term definition, load the UI...
 init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
-	%% TODO: Keep this reminder until more than a single top level component
+	case T of 
+	[] -> ok;
+	%% TODO: Keep the following reminder until more than a single top level component
 	%% for the UI can be created during init.
-	io:format("[UNPARSED] ~p~n", [T]), 
+	T -> error_logger:warning_report([{unparsed_components, T}])
+	end,
 	Window = gx:create(GxTerm),	
-	% maybe here...
+	% SHOW - maybe here... maybe not
 	wxTopLevelWindow:show(Window),
-	% show triggers the gx:onload event
+	% trigger the gx:onload event
 	do_init_handler(Module, Window, GxTerm),
+	% do main loop
 	loop(Module, Window);
 % ...or else load the xml file definition
 init(Module, File) when is_list(File) ->
@@ -49,61 +67,97 @@ init(Module, File) when is_list(File) ->
 	{ok, TermList} = gx_xml:load(Resource),
 	init(Module, TermList).
 
+
+%% SEVERE HACKAGE ALERT FROM HERE...
+
 %% The main event loop for the GUI process instance
-loop(Module, Frame) when is_atom(Module) ->
+loop(Module, Window) when is_atom(Module) ->
     receive 
-	%% TODO: what if the window doesn't have an id/name?? 
-	Evt = #wx{event=#wxClose{}} ->
-		io:format("WXEVENT wxClose~n", []),
-		case Evt#wx.userData of
-		{GxName, Function} ->
-			get_handler(Module, Evt),
-			Module:Function(Frame, Evt);
-		_ -> GxName = undefined
-		end,
-		destroy(Frame, GxName);
+	%% DEBUG
 	Evt = #wx{} ->
-		%% TODO: this is a hack -- improve it!
-		Data = case Evt#wx.event of 
-		{wxCommand, _Type, String, Integer, Long} -> 
-			{String, Integer, Long};
-		_ -> undefined
-		end,
-		{GxName, Callback} = get_handler(Module, Evt),
+		%io:format("wxEvent: ~p~n", [Evt]), 
+		%%% TODO: IN BAD NEED OF REVIEW AND MORE WORK!
+		Handler = 
+			case Evt#wx.event of 
+			#wxClose{} when is_tuple(Evt#wx.userData) ->
+				Evt#wx.userData;
+			#wxClose{} ->
+				{gx, exit};
+			#wxCommand{} when is_tuple(Evt#wx.userData) ->
+				Evt#wx.userData;
+			#wxCommand{} -> % menu events
+				gx_registry:lookup_command(Evt#wx.id)
+			end,
 		
-		Msg = #gx{id=GxName, type=Callback, event=Evt#wx.id, data=Data, wx=[Evt]},
-		case Module:Callback(Frame, Msg) of 
-		ok -> loop(Module, Frame);
-		exit -> destroy(Frame, GxName);
-		Value -> 
-			io:format("INVALID CALLBACK ~p RETURNED ~p~n", [Callback, Value]),
-			loop(Module, Frame)
+		case validate_handler(Module, Handler) of
+		{gx, exit} ->
+			destroy(Window, undefined);
+		{GxName, GxEvent, Callback} ->
+			GxEvt = translate_event(Evt, GxName, GxEvent, Callback),
+			case Module:Callback(Window, GxEvt) of 
+			exit -> 
+				destroy(Window, GxName);
+			ok -> 
+				loop(Module, Window);
+			Value -> 
+				error_logger:error_report([
+					{invalid_callback, Callback}, {value, Value}]),
+				loop(Module, Window)
+			end;
+		undefined ->
+			error_logger:error_report([
+				{invalid_handler, Handler}]),
+			loop(Module, Window)
 		end;
+	Evt = #gx{} ->  %% NOTE: EXPERIMENATAL!
+		{gx, call, F, A} = Evt,
+		apply(Module, F, A),
+		loop(Module, Window);
 	Evt ->
-		io:format("INVALID EVENT ~p~n", [Evt]),
-		loop(Module, Frame)
+		error_logger:error_report([{invalid_event, Evt}]),
+		loop(Module, Window)
     after 1000 ->
 		% check on externally updated files?
-		loop(Module, Frame)
+		loop(Module, Window)
     end.
 
 % Get a valid handler function for an event, if one is available
 % It would probably be better to do all this at creation time, if possible
-get_handler(Module, #wx{userData={GxName, GxHandler}}) ->
+validate_handler(_Module, Handler = {gx, _}) ->
+	Handler;
+validate_handler(Module, {GxName, GxEvent, GxHandler}) ->
 	Exports = Module:module_info(exports),
 	case lists:member({GxHandler, 2}, Exports) of 
 	true -> 
-		{GxName, GxHandler};
+		{GxName, GxEvent, GxHandler};
 	false -> 
 		case lists:member({on_message, 2}, Exports) of
-		true -> {GxName, on_message};
-		false -> {error, no_callback_handler}
+		true -> {GxName, GxEvent, on_message};
+		false -> undefined
 		end
-	end;
-get_handler(Module, E = #wx{id=Command}) when is_integer(Command) ->
-	{GxName, GxHandler} = gx_registry:lookup_command(Command),
-	get_handler(Module, E#wx{userData={GxName, GxHandler}}).
+	end.
 
+%% 
+translate_event(Evt = #wx{}, GxName, GxEvent, _GxCallback) ->
+	WxRef = Evt#wx.obj,	
+	WxData = 
+		case Evt#wx.event of
+		Cmd = #wxCommand{} -> [Cmd#wxCommand.cmdString, 
+			Cmd#wxCommand.commandInt, Cmd#wxCommand.extraLong];
+		_ -> []
+		end,
+	Ident = case GxName of
+		undefined -> Evt#wx.id;
+		_ -> GxName
+		end,
+	#gx{id=Ident, 
+		type=gx_map:gtype(WxRef#wx_ref.type), 
+		event=GxEvent, 
+		data=WxData,
+		user=[],
+		wx=[Evt#wx.id]}. % wx=Evt}.
+				
+%
 do_init_handler(Module, Parent, {_, Options, _}) ->
 	case get_atom(onload, undefined, Options) of
 	undefined -> ok;
@@ -116,7 +170,6 @@ do_init_handler(Module, Parent, {_, Options, _}) ->
 		false -> {error, no_callback_handler}
 		end
 	end.
-
 
 %
 % Core Utility Functions
@@ -133,16 +186,18 @@ get_integer(Key, Opts)           -> gx_registry:get_integer(Key, -1, Opts).
 get_integer(Key, Default, Opts)  -> gx_registry:get_integer(Key, Default, Opts).
 get_string(Key, Opts)            -> gx_registry:get_string(Key, "", Opts).
 get_string(Key, Default, Opts)   -> gx_registry:get_string(Key, Default, Opts).
+%% BUG:should be -> get_resource(Type, Key, Opts)
 get_resource(Key, Opts)          -> gx_registry:get_resource(Key, Opts).
 get_option(Key, Opts)            -> gx_registry:get_option(Key, undefined, Opts).
 get_option(color, Default, Opts) -> gx_map:color(get_atom(color, Default, Opts));
 get_option(Key, Default, Opts)   -> gx_registry:get_option(Key, Default, Opts).
-%%
-get_type(#wx_ref{type=WxType}) -> WxType.
-is_top_level(Type) -> lists:member(Type, [frame, window, dialog, splashscreen]).
 
-%% Extract any valid candidates for events from the component options
+%% Extract any valid candidates for event handlers from the component options
 get_callbacks(Opts) ->
+	% TODO: Convert copes with string input from gxml...
+	% I not sure this is in the right place to do this but also
+	% I am not sure that gxml should know which are valid as 
+	% that would add an unnecessary dependency, perhaps
 	Convert = fun(Name) ->
 		case is_atom(Name) of
 		true -> Name;
@@ -150,6 +205,11 @@ get_callbacks(Opts) ->
 		end
 	end,
 	[{X, Convert(Y)} || {X, Y} <- Opts, is_atom(X), lists:member(X, ?GX_EVENTS)].
+
+%%
+is_top_level(GxType) ->
+	WxType = gx_map:wtype(GxType),
+	gx_map:instance_of(WxType, wxTopLevelWindow).
 
 %% Register a GX component
 register(GxName, Component) ->
@@ -162,92 +222,84 @@ lookup(GxName) ->
 %% as it's not the opposite of create...
 destroy(Component, GxName) when is_tuple(Component), is_atom(GxName) ->	
 	gx_registry:remove_component(Component, GxName),
-	%% Assume parent_class is wxWindow...
+	%% TDDO: Assumes the parent class is wxWindow...
+	error_logger:info_report([
+		{process, self()},
+		{destroyed, Component}
+	]),
 	wxWindow:destroy(Component).
 
 %% Register a GX command and the user-defined handler
-command(GxName, {_WxType, WxMap}, GxHandler) ->
-	[GxCallback] = map_callbacks(WxMap, [GxHandler], []),
+set_command(GxName, WxEvents, {GxEvent, GxHandler}) ->
+	[GxCallback] = [{WxEvent, GxHandler} || {GxEvent1, WxEvent} <- WxEvents, GxEvent == GxEvent1],
 	gx_registry:add_command(GxName, GxCallback).
 	
 %% TODO: Need to clarify naming in the code to reflect the exact differences 
 %% between Handlers, Callbacks and Events 
 %% Register/enable all (valid) user defined event handlers
-events(GxName, Component, [{WxType, WxMap}|T], GxHandlers) ->
-	GxCallbacks = map_callbacks(WxMap, GxHandlers, []),
-	connect_callbacks(WxType, GxName, Component, GxCallbacks),
-	events(GxName, Component, T, GxHandlers);
-events(_, Component, [], _) -> 
-	Component.
-
-%% Associates the WX event directly with the user-defined handler
-map_callbacks([WxMap|T], GxHandlers, Acc) ->
-%	io:format("[MAPPING] ~p ~p~n", [WxMap, GxHandlers]),
-	Acc1 = 
-		case map_callback(WxMap, GxHandlers) of 
-		undefined -> Acc;
-		Callback -> [Callback|Acc]
-		end,	
-	map_callbacks(T, GxHandlers, Acc1);
-map_callbacks([], _, Acc) ->
-	Acc.
-	
-map_callback({GxEvent, WxEvent}, [{GxEvent, GxHandler}|_]) ->
-	{WxEvent, GxHandler};
-map_callback(WxMap, [_|T]) ->
-	map_callback(WxMap, T);
-map_callback(_, []) ->
-	undefined. 
+set_events(GxName, Component, WxEvents, GxHandlers) ->
+	GxCallbacks = [
+		{GxEvent, WxEvent, GxHandler} || 
+		{GxEvent, WxEvent} <- WxEvents, 
+		{GxEvent1, GxHandler} <- GxHandlers, 
+		GxEvent == GxEvent1
+	],
+	connect_callbacks(Component#wx_ref.type, GxName, Component, GxCallbacks).
 
 %% Finally, wire the callbacks from the WX component to the WXE server
-connect_callbacks(WxType, GxName, Component, [{WxEvent, GxHandler}|T]) ->
-	io:format("[EVENT   ] ~p '~p' {~p, ~p}~n", [Component#wx_ref.type, GxName, WxEvent, GxHandler]),
-	WxType:connect(Component, WxEvent, [{userData, {GxName, GxHandler}}]),
+connect_callbacks(WxType, GxName, Component, [{GxEvent, WxEvent, GxHandler}|T]) ->
+	WxType:connect(Component, WxEvent, [{userData, {GxName, GxEvent, GxHandler}}]),
 	connect_callbacks(WxType, GxName, Component, T);
 connect_callbacks(_, _, _, []) -> 
 	ok.
 
 %%
 %% Generic property getter/setter
-%% TODO: MAP GX properties to the WX function names
+%% WARNING: these include experimental remote code!
+-record(gx_ref, {pid, id, wx}).
 
-%% TODO: Property is currently directly(!!!) applied as the function name
-get(GxName, Property) ->
-	Component = lookup(GxName),
-	case Component of 
-	#wx_ref{type=Type} -> Type:Property(Component);
-	_ -> undefined
-	end.
+%% Extended use case: gx:read(listbox, selected, [{item, 0}]).
+%% read/2
+read(Gx = #gx_ref{}, Property) ->
+	Gx#gx_ref.pid ! {Gx, Property};
+read(IdOrRef, Property) -> read(IdOrRef, Property, []).
+% read/3
+read(GxName, Property, Opts) when is_tuple(Opts) ->
+	read(GxName, Property, [Opts]);
+read(GxName, Property, Opts) when is_atom(GxName) ->
+	read(lookup(GxName), Property, Opts);
+read(WxRef = #wx_ref{}, Property, Opts) when is_atom(Property), is_list(Opts) ->
+	gx_map:get(WxRef, Property, Opts).
 
-%% TODO: Property is currently directly(!!!) applied as the function name
-set(GxName, Property, Args) ->
-	Component = lookup(GxName),
-	case Component of 
-	#wx_ref{type=Type} -> apply(Type, Property, [Component|Args]);
-	_ -> undefined
-	end.
-	
+%% Extended use case: gx:config(listbox, [{selected, [{item, 0}]}, {style, blah}]).
+% config/2
+config(Gx = #gx_ref{}, Property) ->
+	Gx#gx_ref.pid ! {Gx, Property};
+config(GxName, Properties) when is_atom(GxName) -> 
+	config(lookup(GxName), Properties);
+config(WxRef, Properties) when is_tuple(Properties) ->
+	config(WxRef, [Properties]);
+config(WxRef = #wx_ref{}, Properties) when is_list(Properties) ->
+	[gx_map:set(WxRef, Property, Opts) || {Property, Opts} <- Properties].
+
 %
 % The Generic GX create/destroy functions
 %
 
-%%
+%% create/3
 create(Component, Parent, Opts) ->
-	%io:format("[CREATE  ] ~p ~p ~p~n", [Component, Parent, Opts]),
 	gx:Component(Parent, Opts).
 
 %% trunk
 create({GxType, Opts, Children}) ->
 	case is_top_level(GxType) of
 	true -> 
-		GX = gx_registry:start(),
+		Gx = gx_registry:start(),
 		wx:batch(fun() -> 
-			%io:format("[CREATE  ] ~p ~p ~p~n", [type, GX, Opts]),
-			Window = ?MODULE:GxType(GX, Opts),
+			Window = ?MODULE:GxType(Gx, Opts),
 			create_tree(Window, Children),
 			
 			%%%% TODO: this isn't working right for Frame furniture (statusbar, menu, etc) 
-			%io:format("FRAME ~p children -> ~p~n", [get_type(Window), wxWindow:getChildren(Window)]),
 			wxTopLevelWindow:fit(Window),
 			wxTopLevelWindow:layout(Window),
 			
@@ -255,38 +307,28 @@ create({GxType, Opts, Children}) ->
 			center -> wxTopLevelWindow:center(Window);
 			[X, Y] -> wxTopLevelWindow:move(Window, X, Y)
 			end,
+			gx_registry:report_info(get_atom(id, Opts), Window),
 			Window 
 		end);
 	false ->
 		{error, not_toplevel}
 	end.
-
-%% TODO: special cases of child elements 
-%% Should implement in xml transform not here?
-create_tree(Parent, [Component = {radiobox, _, _} | Rest]) ->
-	create_choices(Parent, Component, Rest);
-create_tree(Parent, [Component = {list, _, _} | Rest]) ->
-	create_choices(Parent, Component, Rest);
-create_tree(Parent, [Component = {checklist, _, _} | Rest]) ->
-	create_choices(Parent, Component, Rest);
-create_tree(Parent, [Component = {combo, _, _} | Rest]) ->
-	create_choices(Parent, Component, Rest);
-create_tree(Parent, [Component = {choice, _, _} | Rest]) ->
-	create_choices(Parent, Component, Rest);
 	
-%% branch
-create_tree(Parent, [{Component, Opts, Children} | Rest]) ->
-	P = create(Component, Parent, Opts),
-	%io:format("CREATE ~p~n", [P]),
+%% branch 
+create_tree(Parent, [{Type, Opts, Children} | Rest]) ->
+	P = create(Type, Parent, Opts),
 	create_tree(P, Children),
-	
-	%% Important - layout doesn't work without this!
-	%% this is necessary to ensure component sizes are correctly 
+	%% IMPL: Important - layout doesn't work without the following!
+	%% This is necessary to ensure component sizes are correctly 
 	%% propogated from child->parent
-	case get_type(P) of 
+	case P#wx_ref.type of 
 	wxMenu -> ignore;
 	wxMenuItem -> ignore;
-	wxStatusBar -> wxWindow:fit(Parent);
+	wxTreeItemId -> ignore;
+	wxTreeCtrl -> 
+		Root = wxTreeCtrl:getRootItem(P),
+		wxTreeCtrl:expand(P, Root);
+	wxStatusBar -> wxWindow:fit(Parent); %% no effect DARN IT!
 	_ -> 
 		case wxWindow:getSizer(P) of
 		#wx_ref{ref = 0} -> ignore; % ? CORRECT ?
@@ -297,23 +339,22 @@ create_tree(Parent, [{Component, Opts, Children} | Rest]) ->
 %% leaf
 create_tree(Parent, [{Component, Opts} | Rest]) ->
 	create(Component, Parent, Opts),
-	%% at the leaf node, we don't have to worry about size propogation
 	create_tree(Parent, Rest);
 create_tree(Parent, []) ->
-	%io:format("RETURN ~p~n", [Parent]), 
 	Parent.
 
-create_choices(Parent, {Component, Opts, Children}, Rest) ->
-	Pred = fun(X) -> proplists:get_value(label, X) end,
-	Labels = [Pred(Attr) || {item, Attr, []} <- Children],
-	create(Component, Parent, [{choices, Labels} | Opts]),
-	create_tree(Parent, Rest).
 
+%% 
+%% Generic Utility Functions for Components
 %%
 create_sizer_flags(Opts) ->
 	set_sizer_flags(wxSizerFlags:new(), Opts).
 %%
 set_sizer_flags(SizerFlags, Opts) ->
+	% TODO: support border="10, 10, 0, 0" etc
+	Border = get_integer(border, 0, Opts),
+	wxSizerFlags:border(SizerFlags, ?wxALL, Border),
+
 	Align = get_atom(align, left, Opts),
 	case Align of 
 	left   -> wxSizerFlags:left(SizerFlags);
@@ -321,10 +362,6 @@ set_sizer_flags(SizerFlags, Opts) ->
 	right  -> wxSizerFlags:right(SizerFlags);
 	_      -> ignore
 	end,
-	
-	% TODO support border="10, 10, 0, 0" etc
-	Border = get_integer(border, 0, Opts),
-	wxSizerFlags:border(SizerFlags, ?wxALL, Border),
 	
 	Fill = get_boolean(fill, false, Opts),
 	case Fill of % for now fill="true" means fill="both"
@@ -335,13 +372,12 @@ set_sizer_flags(SizerFlags, Opts) ->
 	end,
 	SizerFlags.
 
-%%
+%% TODO: try to refactor this out entirely
 update(Parent, Component, SizerFlags) ->
-	%io:format("TYPE ~p SIZER ~p~n", [Parent, wxWindow:getSizer(Parent)]),
 	case wxWindow:isTopLevel(Parent) of 
 	true ->
 		case wxWindow:getSizer(Component) of
-		#wx_ref{ref=0} -> null_value;
+		#wx_ref{ref=0} -> ok; 
 		Sizer -> wxSizer:setSizeHints(Sizer, Parent)
 		end;
 	false ->
@@ -349,6 +385,7 @@ update(Parent, Component, SizerFlags) ->
 		wxSizer:add(Sizer, Component, SizerFlags)
 		%wxSizer:fit(Sizer, Parent)	%'fit' should not really be called here if possible
 	end.
+	
 
 %% TODO: use this from funs for getting the pos, color, size integer lists.
 get_pos(Opts) ->
@@ -368,32 +405,33 @@ get_integer_list(String, Default) ->
 	_:_ -> Default
 	end.
 
+%%%
+%%% GX/WX Components
+%%%
+
 %% Allow shorthand tag of 'item' inside menus and toolbars
 item(Parent = #wx_ref{type=wxMenu}, Opts) ->	
 	menuitem(Parent, Opts);
 item(Parent = #wx_ref{type=wxToolBar}, Opts) ->	
 	toolitem(Parent, Opts).
 
-%%%
-%%% GX/WX Components
-%%%
-
 %%
 %% Top Level Components
 %%
-% alias this away
+% Alias this away - REMOVE LATER?
 frame(Parent, Opts) -> window(Parent, Opts).
 
-%% Opts = [{title, String}|{width, Integer}|{height, Integer}|{icon, Path}]
+%% Opts = [{title, String}|{width, Integer}|{height, Integer}|{icon, Path}] etc
 window(Parent = #wx_ref{type=wx}, Opts) ->
 	GxName = get_atom(id, Opts),
 	Title = get_string(title, "Untitled", Opts),
-	X = get_integer(width, Opts),
-	Y = get_integer(height, Opts), 
 	Frame = wxFrame:new(Parent, -1, Title),
+	
 	Icon = get_resource(icon, Opts),
 	wxFrame:setIcon(Frame, Icon),	
 
+	X = get_integer(width, Opts),
+	Y = get_integer(height, Opts), 
 % make into a subpanel to be able to use the
 % "special" top level window sizer??	 
 	case X > -1 orelse Y > -1 of
@@ -409,9 +447,10 @@ window(Parent = #wx_ref{type=wx}, Opts) ->
 		ok
 	end,
 	
-	Callbacks = get_callbacks(Opts),
+	Callbacks = get_callbacks(Opts), 
 	%% NOTE: Should add inherited event mapping macros too, e.g. CLOSE!!!?
-	gx:events(GxName, Frame, [?GX_WINDOW_EVENTS], Callbacks),
+	wxFrame:connect(Frame, close_window, []),
+	set_events(GxName, Frame, ?GX_WINDOW_EVENTS, Callbacks),
 	gx:register(GxName, Frame).
 
 %% TODO: Not fully implemented
@@ -427,25 +466,27 @@ dialog(Parent = #wx_ref{type=wx}, Opts) ->
 
 	Callbacks = get_callbacks(Opts),
 	%% NOTE: Should add inherited event mapping macros too, e.g. CLOSE!!!?
-	gx:events(GxName, Dialog, [?GX_WINDOW_EVENTS], Callbacks),
+	wxFrame:connect(Dialog, close_window, []),
+	set_events(GxName, Dialog, ?GX_WINDOW_EVENTS, Callbacks),
 	gx:register(GxName, Dialog).
 
 %%
 %% Containers/Layouts
 %%
 
-%% TODO: Not fully implemented
-x_window(Parent, Opts) -> 
+%% TODO: Do you ever really need to create a generic wxWindow?
+%% I suspect this should be entirely removed
+wx_window(Parent, Opts) -> 
 	GxName = get_atom(id, Opts),
 	X = get_integer(width, 200, Opts),
 	Y = get_integer(height, 200, Opts),	
 	Window = wxWindow:new(Parent, -1, [{size, {X, Y}}]),
 	
 	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, Window, [?GX_WINDOW_EVENTS], Callbacks),
+	set_events(GxName, Window, ?GX_WINDOW_EVENTS, Callbacks),
 	gx:register(GxName, Window).
 
-%%
+%% Equivalent to what GS calls a 'frame'
 panel(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
 	Layout = get_atom(layout, column, Opts),
@@ -483,6 +524,27 @@ panel(Parent, Opts) ->
 	update(Parent, Panel, SizerFlags),
 	gx:register(GxName, Panel).
 
+%% 
+box(Parent, Opts) ->
+	GxName = get_atom(id, Opts),
+	Label = get_string(label, Opts),
+	X = get_integer(width, -1, Opts),
+	Y = get_integer(height, -1, Opts),
+	
+	%% NOTE: wxStaticBox must be added as a first sibling, and not used as
+	%% the parent or wxWidgets will *crash* on exit. Thus we enclose the
+	%% box in a panel and add in the StaticBox as the first child.	
+	Panel = wxPanel:new(Parent),
+	Box = wxStaticBox:new(Panel, -1, Label, [{size, {X, Y}}]),
+	Sizer = wxBoxSizer:new(?wxVERTICAL),
+	BoxSizer = wxStaticBoxSizer:new(Box, ?wxVERTICAL),
+	wxSizer:add(BoxSizer, Sizer),
+	wxPanel:setSizer(Panel, BoxSizer),
+	
+	SizerFlags = create_sizer_flags(Opts),
+	update(Parent, Panel, SizerFlags),	
+	gx:register(GxName, Panel).
+
 %%
 tabs(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
@@ -511,218 +573,218 @@ tab(Parent, Opts) ->
 %% Basic Controls
 %%
 
-%% Opts = [{label, String}] 
-button(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Label = get_string(label, "OK", Opts),
-	Button = wxButton:new(Parent, -1, [{label, Label}]),
+%% TODO: Note that most code is shared and could be refactored out
+
+%% Generic control
+create_control(Parent = #wx_ref{}, Create, StyleFlags, Events, Opts) ->
+	Component = Create(),
+	GxName = get_atom(id, Opts),	
+	wxControl:setName(Component, atom_to_list(GxName)),
+	
 	X = get_integer(width, -1, Opts),
 	Y = get_integer(height, -1, Opts),
-	wxButton:setMinSize(Button, {X, Y}),
-	wxButton:setName(Button, atom_to_list(GxName)),
-	
-	
+	wxControl:setMinSize(Component, {X, Y}),
+		
 	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, Button, [?GX_BUTTON_EVENTS], Callbacks),
+	set_events(GxName, Component, Events, Callbacks),
+	
 	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, Button, SizerFlags),
-	gx:register(GxName, Button).
+	case gx_map:instance_of(Parent, wxTopLevelWindow) of 
+	true ->
+		case wxWindow:getSizer(Component) of
+		#wx_ref{ref=0} -> ok; 
+		Sizer -> wxSizer:setSizeHints(Sizer, Parent)
+		end;
+	false ->
+		Sizer = wxWindow:getSizer(Parent),
+		wxSizer:add(Sizer, Component, SizerFlags)
+		%wxSizer:fit(Sizer, Parent)	%'fit' should not really be called here if possible
+	end,
+	gx:register(GxName, Component).
+
+%% Opts = [{label, String}] 
+button(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Label = get_string(label, "OK", Opts),
+		wxButton:new(Parent, -1, [{label, Label}])
+	end, [], [{onclick, command_button_clicked}], Opts). 
 
 %%
 checkbox(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Label = get_string(label, "(undefined)", Opts),
-	CheckBox = wxCheckBox:new(Parent, -1, Label, []),
+	create_control(Parent, fun() ->
+		Label = get_string(label, "(undefined)", Opts),
+		wxCheckBox:new(Parent, -1, Label, [])
+	end, [], [{onselect, command_checkbox_clicked}], Opts). 
 	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, CheckBox, [?GX_CHECKBOX_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, CheckBox, SizerFlags),	
-	gx:register(GxName, CheckBox).
-	
-%%
-radiobutton(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Label = get_string(label, "(undefined)", Opts),
-	
-	RadioButton = wxRadioButton:new(Parent, -1, Label, []),
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, RadioButton, [?GX_RADIOBUTTON_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, RadioButton, SizerFlags),
-	gx:register(GxName, RadioButton).
-
-%%
-radiobox(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Label = get_string(label, "", Opts),
-	Choices = get_option(choices, [], Opts),
-	
-	RadioBox = wxRadioBox:new(Parent, -1, Label, {-1, -1}, {-1, -1}, Choices),
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, RadioBox, [?GX_RADIOBOX_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, RadioBox, SizerFlags),	
-	gx:register(GxName, RadioBox).
-
-%%
-list(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	_Label = get_string(label, "", Opts),
-	Choices = get_option(choices, [], Opts),
-	
-	ListBox = wxListBox:new(Parent, -1, [{choices, Choices}]),
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, ListBox, [?GX_LISTBOX_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, ListBox, SizerFlags),	
-	gx:register(GxName, ListBox).
-
 %%
 checklist(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	_Label = get_string(label, "", Opts),
-	Choices = get_option(choices, [], Opts),
-	
-	CheckListBox = wxCheckListBox:new(Parent, -1, [{choices, Choices}]),
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, CheckListBox, [?GX_CHECKLISTBOX_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, CheckListBox, SizerFlags),	
-	gx:register(GxName, CheckListBox).
+	create_control(Parent, fun() ->
+		Choices = get_option(items, [], Opts),
+		wxCheckListBox:new(Parent, -1, [{choices, Choices}])
+	end, [], [{onselect, command_listbox_selected}], Opts).
+	% WXE BUG: command_checklistbox_toggled is not defined
 
 %% 
 choice(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	_Label = get_string(value, "", Opts),
-	Choices = get_option(choices, [], Opts),
+	create_control(Parent, fun() ->
+		Choices = get_option(items, [], Opts),
+		%BUG - missing define in wx {style, ?wxCB_DROPDOWN}
+		wxChoice:new(Parent, -1, [{choices, Choices}])
+	end, [], [{onselect, command_choice_selected}], Opts).
 	
-	Choice = wxChoice:new(Parent, -1, [{choices, Choices}]),
-		%{style, ?wxCB_DROPDOWN}
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, Choice, [?GX_CHOICE_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, Choice, SizerFlags),	
-	gx:register(GxName, Choice).
-
+%% Alias
+combo(Parent, Opts) -> combobox(Parent, Opts).
 %%
-combo(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Value = get_string(value, "", Opts),
-	Choices = get_option(choices, [], Opts),
+combobox(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Value = get_string(value, "", Opts),
+		Choices = get_option(items, [], Opts),
+		wxComboBox:new(Parent, -1, [{value, Value}, {choices, Choices}])
+	end, [], [ 
+		{onselect, command_combobox_selected}, 
+		{onchange, command_text_updated}
+	], Opts). 
 	
-	ComboBox = wxComboBox:new(Parent, -1, [{value, Value}, {choices, Choices}]),
-	 %{style, ?wxCB_DROPDOWN}
-	 
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, ComboBox, [?GX_COMBOBOX_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, ComboBox, SizerFlags),	
-	gx:register(GxName, ComboBox).
-
-%
-spinner(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Start = get_integer(start, 0, Opts),
-	End = get_integer('end', 10, Opts),
-	Value = get_integer(value, 5, Opts),
-	Text = get_string(text, "", Opts),
-	_Wrap = get_boolean(wrap, false, Opts),
-	Style = 
-	case get_boolean(wrap, false, Opts) of
-	true -> ?wxSP_WRAP;
-	false -> 0
-	end,
-	Spinner = wxSpinCtrl:new(Parent, [{style, Style}, {min, Start}, {max, End}, 
-		{initial, Value}, {value, Text}]),
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, Spinner, [?GX_SPINNER_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, Spinner, SizerFlags),	
-	gx:register(GxName, Spinner).
-
-%
-text(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Label = get_string(label, Opts),
-	Wrap = get_integer(wrap, -1, Opts),
-	StaticText = wxStaticText:new(Parent, -1, Label, []),
-	wxStaticText:wrap(StaticText, Wrap),
-	
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, StaticText, SizerFlags),
-	gx:register(GxName, StaticText).
-	
-%%
+%% TODO: Doesn't work as expected yet
 line(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	_Label = get_string(label, Opts),
-	Orientation = 
-	%% Note: Why StaticLine doesn't use ?wxHORIZONTAL and ?wxVERTICAL like every
-	%% other component is a total mystery to me
-	case get_atom(orientation, horizontal, Opts) of
-	vertical -> ?wxLI_VERTICAL;
-	_ -> ?wxLI_HORIZONTAL
-	end,
-	StaticLine = wxStaticLine:new(Parent, [{size, {100,2}}, {style, Orientation}]),
+	create_control(Parent, fun() ->
+		_Label = get_string(label, Opts),
+		Orientation = 
+			%% Note: Why StaticLine doesn't use ?wxHORIZONTAL and ?wxVERTICAL like every
+			%% other component is a total mystery to me
+			case get_atom(orientation, horizontal, Opts) of
+			vertical -> ?wxLI_VERTICAL;
+			_ -> ?wxLI_HORIZONTAL
+			end,
+		wxStaticLine:new(Parent, [{size, {100,2}}, {style, Orientation}])
+	end, [], [], Opts). 
 
-	SizerFlags = create_sizer_flags(Opts),	
-	update(Parent, StaticLine, SizerFlags),	
-	gx:register(GxName, StaticLine).
+%%
+list(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Choices = get_option(items, [], Opts),
+		wxListBox:new(Parent, -1, [{choices, Choices}])
+	end, [], [{onselect, command_listbox_selected}], Opts).
+	
+%% Alias
+radio(Parent, Opts) -> radiobutton(Parent, Opts).
 
-%% 
-box(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Label = get_string(label, Opts),
-	X = get_integer(width, -1, Opts),
-	Y = get_integer(height, -1, Opts),
-	
-	%% NOTE: wxStaticBox must be added as a first sibling, and not used as
-	%% the parent or wxWidgets will *crash* on exit. Thus we enclose the
-	%% box in a panel and add in the StaticBox as the first child.	
-	Panel = wxPanel:new(Parent),
-	Box = wxStaticBox:new(Panel, -1, Label, [{size, {X, Y}}]),
-	Sizer = wxBoxSizer:new(?wxVERTICAL),
-	BoxSizer = wxStaticBoxSizer:new(Box, ?wxVERTICAL),
-	wxSizer:add(BoxSizer, Sizer),
-	wxPanel:setSizer(Panel, BoxSizer),
-	
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, Panel, SizerFlags),	
-	gx:register(GxName, Panel).
+%%
+radiobox(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Label = get_string(label, "", Opts),
+		Choices = get_option(items, [], Opts),
+		wxRadioBox:new(Parent, -1, Label, {-1, -1}, {-1, -1}, Choices)
+	end, [], [{onselect, command_radiobox_selected}], Opts).
+
+%%
+radiobutton(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Label = get_string(label, "(undefined)", Opts),
+		wxRadioButton:new(Parent, -1, Label, [])
+	end, [], [{onselect, command_radiobutton_selected}], Opts). 
 
 %%
 slider(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Start = get_integer(min, 0, Opts),
+		End = get_integer(max, 10, Opts),
+		Value = get_integer(value, 5, Opts),
+		Ticks = 
+			case get_boolean(ticks, false, Opts) of
+			true -> ?wxSL_AUTOTICKS;
+			false -> 0
+			end,
+		Labels = 
+			case get_boolean(labels, false, Opts) of
+			true -> ?wxSL_LABELS;
+			false -> 0
+			end,		
+		Style = ?wxSL_HORIZONTAL bor ?wxSL_BOTTOM bor Ticks bor Labels,
+		wxSlider:new(Parent, -1, Value, Start, End, [{style, Style}])
+	end, [], [{onchange, command_slider_updated}], Opts). 
+
+%
+spinner(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Start = get_integer(min, 0, Opts),
+		End = get_integer(max, 10, Opts),
+		Value = get_integer(value, 5, Opts),
+		Text = get_string(label, "", Opts),
+		_Wrap = get_boolean(wrap, false, Opts),
+		Style = case get_boolean(wrap, false, Opts) of
+			true -> ?wxSP_WRAP;
+			false -> 0
+		end,
+		wxSpinCtrl:new(Parent, [{style, Style}, 
+			{min, Start}, {max, End}, {initial, Value}, {value, Text}])
+	end, [], [{onchange, command_text_updated}], Opts). 
+	% WXE BUG: 'evt_spinctrl' is not defined
+
+%
+text(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Label = get_string(value, Opts),
+		Wrap = get_integer(wrap, -1, Opts),
+		StaticText = wxStaticText:new(Parent, -1, Label, []),
+		wxStaticText:wrap(StaticText, Wrap),
+		StaticText
+	end, [], [], Opts). 
+	
+%%
+togglebutton(Parent, Opts) -> 
+	create_control(Parent, fun() ->
+		Label = get_string(label, "OK", Opts),
+		wxToggleButton:new(Parent, -1, Label, [])
+	end, [], [{onclick, command_togglebutton_clicked}], Opts). 
+
+
+%%
+%% Complex Controls
+%%
+
+%% TODO: Add features! Opts = [{label, String}]
+editor(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		_Value = get_option(value, "Untitled", Opts),
+		wxStyledTextCtrl:new(Parent)
+	end, [], [], Opts). 
+
+%%
+tree(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
-	Start = get_integer(start, 0, Opts),
-	End = get_integer('end', 10, Opts),
-	Value = get_integer(value, 5, Opts),
-	
-	Ticks = 
-	case get_boolean(ticks, false, Opts) of
-	true -> ?wxSL_AUTOTICKS;
-	false -> 0
+	Label = get_string(label, Opts),
+	Tree = wxTreeCtrl:new(Parent), %, [{style, ?wxTR_HIDE_ROOT}]),
+	GxIcons = gx_registry:load_icons(),
+	ok = wxTreeCtrl:setImageList(Tree, GxIcons),
+	Type = get_atom(type, folder, Opts),
+	GxIconMap = lookup(gx_iconmap),
+	%Root = 
+	case proplists:get_value(Type, GxIconMap) of
+	undefined ->
+		wxTreeCtrl:addRoot(Tree, Label);
+	Index when is_integer(Index) -> 
+		wxTreeCtrl:addRoot(Tree, Label, [{image, Index}])
 	end,
-	Labels = 
-	case get_boolean(labels, false, Opts) of
-	true -> ?wxSL_LABELS;
-	false -> 0
-	end,
+	%wxTreeCtrl:expand(Tree, Root), % NOTE: WX doesn't like this here!
+	SizerFlags = create_sizer_flags([{fill, true}|Opts]),
+	update(Parent, Tree, SizerFlags),	
+	gx:register(GxName, Tree). 
 	
-	Style = ?wxSL_HORIZONTAL bor ?wxSL_BOTTOM bor Ticks bor Labels,
-	Slider = wxSlider:new(Parent, -1, Value, Start, End, [{style, Style}]),
-	
-	Callbacks = get_callbacks(Opts),
-	gx:events(GxName, Slider, [?GX_SLIDER_EVENTS], Callbacks),
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, Slider, SizerFlags),	
-	gx:register(GxName, Slider).
+%%	
+treeitem(Parent = #wx_ref{type=wxTreeCtrl}, Opts) ->
+	%Label = get_string(label, Opts),
+	Value = get_string(value, Opts),
+	%Icon = get_resource(icon, Opts),
+	Root = wxTreeCtrl:getRootItem(Parent),
+	Type = get_atom(type, file, Opts),
+	GxIconMap = lookup(gx_iconmap),
+	case proplists:get_value(Type, GxIconMap) of
+	undefined ->
+		wxTreeCtrl:appendItem(Parent, Root, Value);
+	Index when is_integer(Index) -> 
+		wxTreeCtrl:appendItem(Parent, Root, Value, [{image, Index}])
+	end.
 
 %%
 %% Frame furniture
@@ -751,9 +813,12 @@ menuitem(Parent = #wx_ref{type=wxMenu}, Opts) ->
 	Label = get_string(label, Opts),
 	Type = get_atom(type, normal, Opts),
 	
-	%% TODO: can ignore multiple (but illegal) callbacks here... is thsi VALID???
+	%% TODO: can ignore multiple (but illegal) callbacks here... is this VALID???
 	Command = case get_callbacks(Opts) of
-	[Callback|_] -> gx:command(GxName, ?GX_MENU_COMMAND, Callback);
+	[Callback|_] -> 
+		set_command(GxName, [	
+			{onselect, command_menu_selected}
+		], Callback);
 	[] -> ?wxID_NONE
 	end,
 	Item = case Type of 
@@ -790,45 +855,14 @@ toolitem(_Parent = #wx_ref{type=wxToolBar}, Opts) ->
 statusbar(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
 	StatusBar = wxFrame:createStatusBar(Parent, []), 
-	Text = get_option(text, "", Opts),
+	Text = get_option(value, "", Opts),
 	wxFrame:setStatusText(Parent, Text, []),
 	gx:register(GxName, StatusBar).
-
-%%
-%% Advanced Controls
-%%
-
-%% Opts = [{label, String}]
-editor(Parent, Opts) ->
-	GxName = get_atom(id, Opts),
-	Value = get_option(value, "Untitled", Opts),
-	X = get_option(width, 200, Opts),
-	Y = get_option(height, 200, Opts),
-	
-	Editor = wxTextCtrl:new(Parent, -1, [{value, Value}, {size, {X, Y}}, {style, ?wxTE_MULTILINE}]),
-	
-	SizerFlags = create_sizer_flags(Opts),
-	update(Parent, Editor, SizerFlags),
-
-	gx:register(GxName, Editor),
-	Editor.
 
 
 %%
 %% System Dialogs
 %%
-
-%% wxErlang BUG(?): The required style macros are missing from wxErlang
-%% From /include/wx/generic/splash.h
-%% #define wxSPLASH_CENTRE_ON_PARENT   0x01
-%% #define wxSPLASH_CENTRE_ON_SCREEN   0x02
-%% #define wxSPLASH_NO_CENTRE          0x00
-%% #define wxSPLASH_TIMEOUT            0x04
-%% #define wxSPLASH_NO_TIMEOUT         0x00
-splashscreen(Parent, Opts) ->
-	Timeout = get_integer(timeout, 5000, Opts),
-	Image = get_resource(image, Opts),
-	wxSplashScreen:new(Image, 16#02 bor 16#04, Timeout, Parent, -1).
 
 
 %% TODO: generalize these remove from registry on close!
@@ -836,17 +870,37 @@ splashscreen(Parent, Opts) ->
 alert(Parent, Message, Opts) ->
 	Name = get_atom(id, Opts),
 	Caption = get_string(title, "", Opts),
+	
 	Dialog = wxMessageDialog:new(Parent, Message,
 		[{style, ?wxOK bor ?wxICON_INFORMATION}, {caption, Caption}]),
+	
 	gx:register(Name, Dialog),
 	wxDialog:centreOnParent(Dialog),
     wxDialog:showModal(Dialog),
     wxDialog:destroy(Dialog). 
 
+%% TODO: generalize these remove from registry on close!
+textentrydialog(Parent, Message, Opts) ->
+	Name = get_atom(id, Opts),
+	Caption = get_string(title, "", Opts),
+	
+	Dialog = wxTextEntryDialog:new(Parent, Message,
+		[{style, ?wxOK bor ?wxCANCEL}, {caption, Caption}]),
+	
+	gx:register(Name, Dialog),
+	wxDialog:centreOnParent(Dialog),
+    wxDialog:showModal(Dialog),
+	Text = wxTextEntryDialog:getValue(Dialog),
+    wxDialog:destroy(Dialog),
+	Text. 
+
+
 %%
 colordialog(Parent, Opts) ->
 	Name = get_atom(id, Opts),
+	
 	ColorDialog = wxColourDialog:new(Parent),
+	
 	gx:register(Name, ColorDialog),
 	case wxColourDialog:showModal(ColorDialog) of
 	?wxID_OK ->
@@ -861,17 +915,22 @@ colordialog(Parent, Opts) ->
 %%
 filedialog(Parent, Opts) ->
 	Name = get_atom(id, Opts),
+	
 	FileDialog = wxFileDialog:new(Parent),
+	
 	gx:register(Name, FileDialog),
     wxFileDialog:showModal(FileDialog),
 	Filename = wxFileDialog:getFilename(FileDialog),
 	wxFileDialog:destroy(FileDialog),
 	Filename.
 
+%%
 fontdialog(Parent, Opts) ->
 	Name = get_atom(id, Opts),
+	
 	FontDialog = wxFontDialog:new(Parent),
 	gx:register(Name, FontDialog),
+	
 	case wxFontDialog:showModal(FontDialog) of
 	?wxID_OK ->
 		FontData = wxFontDialog:getFontData(FontDialog),
@@ -881,3 +940,17 @@ fontdialog(Parent, Opts) ->
 	end,
 	wxFontDialog:destroy(FontDialog),
 	Data.
+	
+	
+%% wxErlang BUG(?): The required style macros are missing from wxErlang
+%% From /include/wx/generic/splash.h
+%% #define wxSPLASH_CENTRE_ON_PARENT   0x01
+%% #define wxSPLASH_CENTRE_ON_SCREEN   0x02
+%% #define wxSPLASH_NO_CENTRE          0x00
+%% #define wxSPLASH_TIMEOUT            0x04
+%% #define wxSPLASH_NO_TIMEOUT         0x00
+splashscreen(Parent, Opts) ->
+	Timeout = get_integer(timeout, 5000, Opts),
+	Image = get_resource(image, Opts),
+	wxSplashScreen:new(Image, 16#02 bor 16#04, Timeout, Parent, -1).
+
