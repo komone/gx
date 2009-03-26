@@ -237,10 +237,35 @@ super(wxWindow)              -> wxEvtHandler;
 super(wxWindowDC)            -> wxDC;
 super(_)                     -> undefined.
 
+
+% color/3
+color(R, G, B) when R >= 0, R < 256, G >= 0, G < 256, B >= 0, B < 256 -> 
+	{R, G, B, 255};
+color(_, _, _) -> 
+	undefined.
+	
+% color/2
+color(Name, Alpha) when is_atom(Name), Alpha >= 0, Alpha < 256 ->
+	{R, G, B, _} = color(Name), 
+	{R, G, B, Alpha};
+color(_, _) -> 
+	undefined.
+
+% color/1
+color(Value) when is_integer(Value) -> 
+	color(Value bsr 16, (Value bsr 8) band 16#ff, Value band 16#ff);
+color([$#, R, G, B]) -> 
+	color(erlang:list_to_integer([R, R, G, G, B, B], 16));
+color([$#, R, R1, G, G1, B, B1]) ->
+	color(erlang:list_to_integer([R, R1, G, G1, B, B1], 16));
+color([R, G, B]) -> 
+	color(R, G, B);
+color([R, G, B, A]) -> 
+	{R, G, B, A};
+
 %% ATTRIBUTE COLOR NAMES
 %% HTML 4: aqua, black, blue, fuchsia, gray, green, lime, maroon, 
 %%         navy, olive, purple, red, silver, teal, white, yellow
-% Names (could optimize later)
 color(aliceblue) -> color(16#f0f8ff);
 color(antiquewhite) -> color(16#faebd7);
 color(aqua) -> color(16#00ffff);
@@ -385,20 +410,4 @@ color(white) -> color(16#ffffff);
 color(whitesmoke) -> color(16#f5f5f5);
 color(yellow) -> color(16#ffff00);
 color(yellowgreen) -> color(16#9acd32);
-% TODO: could improve filters...
-% color/1
-color(Value) when is_atom(Value) -> undefined;
-color(Value) when is_integer(Value) -> 
-	{Value bsr 16, (Value bsr 8) band 16#ff, Value band 16#ff, 255};
-color([R, G, B]) -> color(R, G, B);
-color([R, G, B, A]) -> {R, G, B, A}.
-% color/2
-color(Name, Alpha) when is_atom(Name), Alpha >= 0, Alpha < 256 ->
-	{R, G, B} = color(Name), 
-	{R, G, B, Alpha};
-color(_, _) -> undefined.
-% color/3
-color(R, G, B) when R >= 0, R < 256, G >= 0, G < 256, B >= 0, B < 256 -> 
-	{R, G, B, 255};
-color(_, _, _) -> undefined.
-
+color(_) -> undefined.

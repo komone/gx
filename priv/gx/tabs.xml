@@ -1,10 +1,31 @@
 <?xml version="1.0"?>
 <gx>
-<frame>
-<tabs>
-<tab label="Untitled">
-<editor width="600" height="400"/>
-</tab>
-</tabs>
-</frame>
+<window>
+	<statusbar/>
+	<panel layout="row">
+		<tree type="project" label="Root" expand="/" fill="true">
+			<item>this.xml</item>
+			<item type="file">that.xml</item>
+			<item type="folder">other.xml</item>
+		</tree>
+		<tabs fill="true">
+			<item label="Untitled">
+				<editor fill="true"/>
+			</item>
+			<item label="Untitled2">
+				<box border="5" fill="true"/>
+			</item>
+			<item label="More...">
+				<tabs fill="true">
+					<item label="First">
+						<text align="center">First Panel</text>
+					</item>
+					<item label="Second">
+						<text align="center">Second Panel</text>
+					</item>
+				</tabs>
+			</item>
+		</tabs>
+	</panel>
+</window>
 </gx>

@@ -10,7 +10,9 @@
 -include("../include/gx.hrl").
 -include_lib("wx/include/wx.hrl").
 
+-define(GX_APPLICATION, gx).
 % ETS Table Names
+-define(GX_REGISTRY, gx_registry).
 -define(GX_COMPONENTS, gx_components).
 -define(GX_COMMANDS, gx_commands).
 
@@ -30,12 +32,19 @@ start() ->
 		
 		%% TODO - For now, just get access to the environment
 		%% for resource loading purposes..
-		application:load(gx),
-		
+		case application:get_application(?GX_APPLICATION) of
+		{ok, ?GX_APPLICATION} -> ok;
+		undefined -> application:load(?GX_APPLICATION)
+		end,
+		case ets:info(?GX_REGISTRY) of 
+		undefined ->
+			ets:new(?GX_REGISTRY, [set, named_table, public]),
+			ets:insert(?GX_REGISTRY, {{self(), gx}, Root});
+		_ -> ok
+		end,
 		case ets:info(?GX_COMPONENTS) of 
 		undefined ->
-			ets:new(?GX_COMPONENTS, [set, named_table, public]),
-			ets:insert(?GX_COMPONENTS, {{self(), gx}, Root});
+			ets:new(?GX_COMPONENTS, [set, named_table, public]);
 		_ -> ok
 		end,
 		case ets:info(?GX_COMMANDS) of 
@@ -59,21 +68,28 @@ stop() ->
 	undefined -> ok;
 	_ -> ets:delete(?GX_COMPONENTS)
 	end,
-	% TODO: maybe catch the "restop" error here...
-	wx:destroy().
+	case ets:info(?GX_REGISTRY) of
+	undefined -> ok;
+	_ -> ets:delete(?GX_REGISTRY)
+	end,
+	try
+		wx:destroy()
+	catch
+		_:_ -> {ok, already_stopped}
+	end.
 
 %% 
 info() ->
-	case ets:info(?GX_COMPONENTS) of
+	case ets:info(?GX_REGISTRY) of
 	undefined -> no_gx;
 	_ -> 
+		Registry = ets:tab2list(?GX_REGISTRY),
 		Components = ets:tab2list(?GX_COMPONENTS),
-		case ets:info(?GX_COMMANDS) of
-		undefined -> Commands = [];
-		_ -> Commands = ets:tab2list(?GX_COMMANDS)
-		end,
-		{gx_registry, [{components, length(Components), Components}, 
-		{commands, length(Commands), Commands}]}
+		Commands = ets:tab2list(?GX_COMMANDS),
+		{gx_registry, [
+			{registry, length(Registry), Registry}, 
+			{components, length(Components), Components}, 
+			{commands, length(Commands), Commands}]}
 	end.
 
 
@@ -85,7 +101,6 @@ report_info(GxName, Component) ->
 		{created, GxName}, 
 		{component, Component}, 
 		{resource_paths, find_resource("")}]).
-
 
 %%
 add_component(undefined, Component) ->
@@ -128,18 +143,19 @@ add_command(GxName, GxCallback) ->
 		ignored;
 	false -> 
 		Command = ?wxID_HIGHEST + 1001 + ets:info(?GX_COMMANDS, size),
+		put(Command, {GxName, GxCallback}),
 		ets:insert_new(?GX_COMMANDS, {{self(), Command}, {GxName, GxCallback}})
 	end,
 	% error_logger:info_report([{?GX_COMMANDS, add}, {GxName, GxCallback}]),
 	Command.
 
-%% TODO?: do we also need remove_command? it would be symmetrical...
-
 %% TODO?: could do a consistency check on Type...
 lookup_command(Command) ->
 	Process = self(),
 	case ets:lookup(?GX_COMMANDS, {Process, Command}) of 
-	[{{Process, Command}, {GxName, {_Type, Callback}}}] -> {GxName, Callback};
+	[{{Process, Command}, {GxName, {GxEvent, _Type, Callback}}}] -> {GxName, GxEvent, Callback},
+	{Name, {Event, WxType, GxCallback}} = get(Command),
+	{Name, Event, GxCallback};
 	_ -> undefined
 	end.
 
@@ -199,7 +215,9 @@ load_icons() ->
 		%% TODO: save the iconmap to ets!
 		add_component(gx_iconmap, IconMap), %% TODO: does this really belong in the component registry?
 		add_component(gx_icons, ImageList);
-	Value -> Value
+	Value ->
+		io:format("RSRC ICONS ALREADY LOADED", []),
+		Value
 	end.
 
 %%

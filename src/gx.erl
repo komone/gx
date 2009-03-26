@@ -13,7 +13,7 @@
 -record(wx_ref, {ref, type, state=[]}).
 
 -compile(export_all).
--export([start/2, create/1, create/3, destroy/2]).
+-export([start/2, create_tree/1, create/3, destroy/2]).
 -export([ % Components
 	window/2, dialog/2, splashscreen/2,
 	panel/2, box/2,
@@ -26,8 +26,6 @@
 %% TODO: remove?
 -define(GX_WINDOW_EVENTS, [{onunload, close_window}]).
 
-%% TODO:gx
-%% Regression: Window closing no longer reliably captured, so registry leaks
 
 % Convenience
 run(File) ->
@@ -54,9 +52,9 @@ init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
 	%% for the UI can be created during init.
 	T -> error_logger:warning_report([{unparsed_components, T}])
 	end,
-	Window = gx:create(GxTerm),	
-	% SHOW - maybe here... maybe not
-	wxTopLevelWindow:show(Window),
+	
+	Window = gx:create_tree(GxTerm),	
+
 	% trigger the gx:onload event
 	do_init_handler(Module, Window, GxTerm),
 	% do main loop
@@ -67,15 +65,12 @@ init(Module, File) when is_list(File) ->
 	{ok, TermList} = gx_xml:load(Resource),
 	init(Module, TermList).
 
-
-%% SEVERE HACKAGE ALERT FROM HERE...
-
 %% The main event loop for the GUI process instance
 loop(Module, Window) when is_atom(Module) ->
     receive 
 	%% DEBUG
 	Evt = #wx{} ->
-		%io:format("wxEvent: ~p~n", [Evt]), 
+		io:format("wxEvent: ~p~n", [Evt]), 
 		%%% TODO: IN BAD NEED OF REVIEW AND MORE WORK!
 		Handler = 
 			case Evt#wx.event of 
@@ -139,17 +134,18 @@ validate_handler(Module, {GxName, GxEvent, GxHandler}) ->
 
 %% 
 translate_event(Evt = #wx{}, GxName, GxEvent, _GxCallback) ->
-	WxRef = Evt#wx.obj,	
-	WxData = 
-		case Evt#wx.event of
-		Cmd = #wxCommand{} -> [Cmd#wxCommand.cmdString, 
-			Cmd#wxCommand.commandInt, Cmd#wxCommand.extraLong];
-		_ -> []
-		end,
 	Ident = case GxName of
 		undefined -> Evt#wx.id;
 		_ -> GxName
 		end,
+	WxRef = Evt#wx.obj,	
+	WxData = 
+		case Evt#wx.event of
+		Cmd = #wxCommand{} -> [ Cmd#wxCommand.cmdString, 
+			Cmd#wxCommand.commandInt, Cmd#wxCommand.extraLong];
+		_ -> []
+		end,
+		
 	#gx{id=Ident, 
 		type=gx_map:gtype(WxRef#wx_ref.type), 
 		event=GxEvent, 
@@ -192,6 +188,24 @@ get_option(Key, Opts)            -> gx_registry:get_option(Key, undefined, Opts)
 get_option(color, Default, Opts) -> gx_map:color(get_atom(color, Default, Opts));
 get_option(Key, Default, Opts)   -> gx_registry:get_option(Key, Default, Opts).
 
+%% TODO: use this from funs for getting the pos, color, size integer lists.
+get_pos(Opts) ->
+	case get_atom(pos, Opts) of
+	center -> center;
+	_ ->
+		String = get_string(pos, Opts),
+		get_integer_list(String, [-1, -1])
+	end.
+
+get_integer_list(String, Default) ->
+	try begin
+		L = re:split(String, "[, ]+"),
+		true = length(L) >= length(Default),
+		[list_to_integer(binary_to_list(X)) || X <- L]
+	end catch
+	_:_ -> Default
+	end.
+
 %% Extract any valid candidates for event handlers from the component options
 get_callbacks(Opts) ->
 	% TODO: Convert copes with string input from gxml...
@@ -210,6 +224,7 @@ get_callbacks(Opts) ->
 is_top_level(GxType) ->
 	WxType = gx_map:wtype(GxType),
 	gx_map:instance_of(WxType, wxTopLevelWindow).
+
 
 %% Register a GX component
 register(GxName, Component) ->
@@ -231,7 +246,8 @@ destroy(Component, GxName) when is_tuple(Component), is_atom(GxName) ->
 
 %% Register a GX command and the user-defined handler
 set_command(GxName, WxEvents, {GxEvent, GxHandler}) ->
-	[GxCallback] = [{WxEvent, GxHandler} || {GxEvent1, WxEvent} <- WxEvents, GxEvent == GxEvent1],
+	[GxCallback] = [{GxEvent, WxEvent, GxHandler} 
+		|| {GxEvent1, WxEvent} <- WxEvents, GxEvent == GxEvent1],
 	gx_registry:add_command(GxName, GxCallback).
 	
 %% TODO: Need to clarify naming in the code to reflect the exact differences 
@@ -291,7 +307,7 @@ create(Component, Parent, Opts) ->
 	gx:Component(Parent, Opts).
 
 %% trunk
-create({GxType, Opts, Children}) ->
+create_tree({GxType, Opts, Children}) ->
 	case is_top_level(GxType) of
 	true -> 
 		Gx = gx_registry:start(),
@@ -300,14 +316,22 @@ create({GxType, Opts, Children}) ->
 			create_tree(Window, Children),
 			
 			%%%% TODO: this isn't working right for Frame furniture (statusbar, menu, etc) 
+			% wxTopLevelWindow:layout(Window),
+			% wxTopLevelWindow:fitInside(Window),
 			wxTopLevelWindow:fit(Window),
-			wxTopLevelWindow:layout(Window),
 			
 			case get_pos(Opts) of
 			center -> wxTopLevelWindow:center(Window);
 			[X, Y] -> wxTopLevelWindow:move(Window, X, Y)
 			end,
+			
 			gx_registry:report_info(get_atom(id, Opts), Window),
+			
+			case get_boolean(show, true, Opts) of 
+			true -> wxTopLevelWindow:show(Window);
+			false -> ignore
+			end,			
+			
 			Window 
 		end);
 	false ->
@@ -320,20 +344,24 @@ create_tree(Parent, [{Type, Opts, Children} | Rest]) ->
 	create_tree(P, Children),
 	%% IMPL: Important - layout doesn't work without the following!
 	%% This is necessary to ensure component sizes are correctly 
-	%% propogated from child->parent
-	case P#wx_ref.type of 
-	wxMenu -> ignore;
-	wxMenuItem -> ignore;
-	wxTreeItemId -> ignore;
-	wxTreeCtrl -> 
-		Root = wxTreeCtrl:getRootItem(P),
-		wxTreeCtrl:expand(P, Root);
-	wxStatusBar -> wxWindow:fit(Parent); %% no effect DARN IT!
-	_ -> 
+	%% propagated from child->parent
+	case gx_map:instance_of(P, wxWindow) of 
+	true ->
 		case wxWindow:getSizer(P) of
 		#wx_ref{ref = 0} -> ignore; % ? CORRECT ?
 		Sizer -> wxSizer:fit(Sizer, Parent)
-		end
+		end;
+	false ->
+		ignore
+	end,
+	%% TDOD: Get rid of this temporary hack...
+	%% can it safely be put back into tree/2?
+	case gx_map:instance_of(P, wxTreeCtrl) of
+	true ->
+		Root = wxTreeCtrl:getRootItem(P),
+		wxTreeCtrl:expand(P, Root);
+	false -> 
+		ignore 
 	end,
 	create_tree(Parent, Rest);
 %% leaf
@@ -387,24 +415,6 @@ update(Parent, Component, SizerFlags) ->
 	end.
 	
 
-%% TODO: use this from funs for getting the pos, color, size integer lists.
-get_pos(Opts) ->
-	case get_atom(pos, Opts) of
-	center -> center;
-	_ ->
-		String = get_string(pos, Opts),
-		get_integer_list(String, [-1, -1])
-	end.
-
-get_integer_list(String, Default) ->
-	try begin
-		L = re:split(String, "[, ]+"),
-		true = length(L) >= length(Default),
-		[list_to_integer(binary_to_list(X)) || X <- L]
-	end catch
-	_:_ -> Default
-	end.
-
 %%%
 %%% GX/WX Components
 %%%
@@ -413,7 +423,13 @@ get_integer_list(String, Default) ->
 item(Parent = #wx_ref{type=wxMenu}, Opts) ->	
 	menuitem(Parent, Opts);
 item(Parent = #wx_ref{type=wxToolBar}, Opts) ->	
-	toolitem(Parent, Opts).
+	toolitem(Parent, Opts);
+item(Parent = #wx_ref{type=wxNotebook}, Opts) ->	
+	tabitem(Parent, Opts);
+item(Parent = #wx_ref{type=wxTreeCtrl}, Opts) ->	
+	treeitem(Parent, Opts);
+item(Parent = #wx_ref{type=wxTreeItemId}, Opts) ->	
+	treeitem(Parent, Opts).
 
 %%
 %% Top Level Components
@@ -473,18 +489,13 @@ dialog(Parent = #wx_ref{type=wx}, Opts) ->
 %%
 %% Containers/Layouts
 %%
+%% NOTE: Do you ever really need to create a generic wxWindow unless you 
+%% are implementing a new type of wx component? Hence, GX doesn't offer it.
+%%
 
-%% TODO: Do you ever really need to create a generic wxWindow?
-%% I suspect this should be entirely removed
-wx_window(Parent, Opts) -> 
-	GxName = get_atom(id, Opts),
-	X = get_integer(width, 200, Opts),
-	Y = get_integer(height, 200, Opts),	
-	Window = wxWindow:new(Parent, -1, [{size, {X, Y}}]),
-	
-	Callbacks = get_callbacks(Opts),
-	set_events(GxName, Window, ?GX_WINDOW_EVENTS, Callbacks),
-	gx:register(GxName, Window).
+%% skel
+create_container(_Parent = #wx_ref{}, _Create, _StyleFlags, _Events, _Opts) ->
+	not_implemented.
 
 %% Equivalent to what GS calls a 'frame'
 panel(Parent, Opts) ->
@@ -524,7 +535,7 @@ panel(Parent, Opts) ->
 	update(Parent, Panel, SizerFlags),
 	gx:register(GxName, Panel).
 
-%% 
+%% TODO: any way to move this into panel?
 box(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
 	Label = get_string(label, Opts),
@@ -535,6 +546,7 @@ box(Parent, Opts) ->
 	%% the parent or wxWidgets will *crash* on exit. Thus we enclose the
 	%% box in a panel and add in the StaticBox as the first child.	
 	Panel = wxPanel:new(Parent),
+	
 	Box = wxStaticBox:new(Panel, -1, Label, [{size, {X, Y}}]),
 	Sizer = wxBoxSizer:new(?wxVERTICAL),
 	BoxSizer = wxStaticBoxSizer:new(Box, ?wxVERTICAL),
@@ -548,35 +560,55 @@ box(Parent, Opts) ->
 %%
 tabs(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
+	
 	Notebook = wxNotebook:new(Parent, -1, []),
-	Sizer = wxBoxSizer:new(?wxHORIZONTAL),
+	
+	GxIcons = gx_registry:load_icons(),
+	ok = wxNotebook:setImageList(Notebook, GxIcons),
+	
+	Sizer = wxBoxSizer:new(?wxVERTICAL),
 	wxNotebook:setSizer(Notebook, Sizer),
-
+	
 	SizerFlags = create_sizer_flags(Opts), 
 	update(Parent, Notebook, SizerFlags),
 	gx:register(GxName, Notebook).
 
 %%
-tab(Parent, Opts) ->
+tabitem(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
 	Label = get_string(label, Opts),
-	Panel = wxPanel:new(), 
+	Panel = wxPanel:new(Parent), 
 	Sizer = wxBoxSizer:new(?wxVERTICAL),
-	wxPanel:setSizer(Panel, Sizer),
-	wxNotebook:addPage(Parent, Panel, Label),
+	wxPanel:setSizer(Panel, Sizer),	
+	
+	Type = get_atom(type, file, Opts),
+	GxIconMap = lookup(gx_iconmap),
+	case proplists:get_value(Type, GxIconMap) of
+	undefined ->
+		wxNotebook:addPage(Parent, Panel, Label);
+	Index when is_integer(Index) -> 
+		wxNotebook:addPage(Parent, Panel, Label, [{imageId, Index}])
+	end,
 	
 	SizerFlags = create_sizer_flags(Opts),
 	update(Parent, Panel, SizerFlags),
 	gx:register(GxName, Panel).
 
+%% TODO: Add features! Opts = [{label, String}]
+editor(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		_Value = get_option(value, "Untitled", Opts),
+		wxStyledTextCtrl:new(Parent)
+	end, [], [], Opts). 
+
+
 %%
 %% Basic Controls
 %%
 
-%% TODO: Note that most code is shared and could be refactored out
-
 %% Generic control
-create_control(Parent = #wx_ref{}, Create, StyleFlags, Events, Opts) ->
+%% TODO: cope with Style flags 
+create_control(Parent = #wx_ref{}, Create, _StyleFlags, Events, Opts) ->
 	Component = Create(),
 	GxName = get_atom(id, Opts),	
 	wxControl:setName(Component, atom_to_list(GxName)),
@@ -598,11 +630,10 @@ create_control(Parent = #wx_ref{}, Create, StyleFlags, Events, Opts) ->
 	false ->
 		Sizer = wxWindow:getSizer(Parent),
 		wxSizer:add(Sizer, Component, SizerFlags)
-		%wxSizer:fit(Sizer, Parent)	%'fit' should not really be called here if possible
 	end,
 	gx:register(GxName, Component).
 
-%% Opts = [{label, String}] 
+%% 
 button(Parent, Opts) ->
 	create_control(Parent, fun() ->
 		Label = get_string(label, "OK", Opts),
@@ -666,9 +697,6 @@ list(Parent, Opts) ->
 		wxListBox:new(Parent, -1, [{choices, Choices}])
 	end, [], [{onselect, command_listbox_selected}], Opts).
 	
-%% Alias
-radio(Parent, Opts) -> radiobutton(Parent, Opts).
-
 %%
 radiobox(Parent, Opts) ->
 	create_control(Parent, fun() ->
@@ -677,6 +705,8 @@ radiobox(Parent, Opts) ->
 		wxRadioBox:new(Parent, -1, Label, {-1, -1}, {-1, -1}, Choices)
 	end, [], [{onselect, command_radiobox_selected}], Opts).
 
+%% Alias
+radio(Parent, Opts) -> radiobutton(Parent, Opts).
 %%
 radiobutton(Parent, Opts) ->
 	create_control(Parent, fun() ->
@@ -724,7 +754,11 @@ spinner(Parent, Opts) ->
 %
 text(Parent, Opts) ->
 	create_control(Parent, fun() ->
-		Label = get_string(value, Opts),
+		Label = 
+			case get_string(value, Opts) of 
+			[] -> get_string(label, Opts);
+			Value -> Value
+			end,
 		Wrap = get_integer(wrap, -1, Opts),
 		StaticText = wxStaticText:new(Parent, -1, Label, []),
 		wxStaticText:wrap(StaticText, Wrap),
@@ -738,23 +772,16 @@ togglebutton(Parent, Opts) ->
 		wxToggleButton:new(Parent, -1, Label, [])
 	end, [], [{onclick, command_togglebutton_clicked}], Opts). 
 
-
 %%
 %% Complex Controls
 %%
-
-%% TODO: Add features! Opts = [{label, String}]
-editor(Parent, Opts) ->
-	create_control(Parent, fun() ->
-		_Value = get_option(value, "Untitled", Opts),
-		wxStyledTextCtrl:new(Parent)
-	end, [], [], Opts). 
 
 %%
 tree(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
 	Label = get_string(label, Opts),
 	Tree = wxTreeCtrl:new(Parent), %, [{style, ?wxTR_HIDE_ROOT}]),
+	put(erlang:make_ref(), Tree),
 	GxIcons = gx_registry:load_icons(),
 	ok = wxTreeCtrl:setImageList(Tree, GxIcons),
 	Type = get_atom(type, folder, Opts),
@@ -773,9 +800,18 @@ tree(Parent, Opts) ->
 	
 %%	
 treeitem(Parent = #wx_ref{type=wxTreeCtrl}, Opts) ->
-	%Label = get_string(label, Opts),
 	Value = get_string(value, Opts),
-	%Icon = get_resource(icon, Opts),
+	Root = wxTreeCtrl:getRootItem(Parent),
+	Type = get_atom(type, file, Opts),
+	GxIconMap = lookup(gx_iconmap),
+	case proplists:get_value(Type, GxIconMap) of
+	undefined ->
+		wxTreeCtrl:appendItem(Parent, Root, Value);
+	Index when is_integer(Index) -> 
+		wxTreeCtrl:appendItem(Parent, Root, Value, [{image, Index}])
+	end;
+treeitem(Parent = #wx_ref{type=wxTreeItemId}, Opts) ->
+	Value = get_string(value, Opts),
 	Root = wxTreeCtrl:getRootItem(Parent),
 	Type = get_atom(type, file, Opts),
 	GxIconMap = lookup(gx_iconmap),
@@ -816,9 +852,7 @@ menuitem(Parent = #wx_ref{type=wxMenu}, Opts) ->
 	%% TODO: can ignore multiple (but illegal) callbacks here... is this VALID???
 	Command = case get_callbacks(Opts) of
 	[Callback|_] -> 
-		set_command(GxName, [	
-			{onselect, command_menu_selected}
-		], Callback);
+		set_command(GxName, [{onselect, command_menu_selected}], Callback);
 	[] -> ?wxID_NONE
 	end,
 	Item = case Type of 
@@ -864,20 +898,22 @@ statusbar(Parent, Opts) ->
 %% System Dialogs
 %%
 
-
 %% TODO: generalize these remove from registry on close!
-%%
+%% Ideal would be to create these lazily but keep the reference around
+%% after first use
 alert(Parent, Message, Opts) ->
-	Name = get_atom(id, Opts),
+	GxName = get_atom(id, Opts),
 	Caption = get_string(title, "", Opts),
 	
 	Dialog = wxMessageDialog:new(Parent, Message,
 		[{style, ?wxOK bor ?wxICON_INFORMATION}, {caption, Caption}]),
 	
-	gx:register(Name, Dialog),
+	gx:register(GxName, Dialog),
 	wxDialog:centreOnParent(Dialog),
     wxDialog:showModal(Dialog),
-    wxDialog:destroy(Dialog). 
+    wxDialog:destroy(Dialog),
+	ok. 
+
 
 %% TODO: generalize these remove from registry on close!
 textentrydialog(Parent, Message, Opts) ->
@@ -941,7 +977,8 @@ fontdialog(Parent, Opts) ->
 	wxFontDialog:destroy(FontDialog),
 	Data.
 	
-	
+%% Note: Technically, this ia a top level item, but it makes a lot more
+%% sense here.
 %% wxErlang BUG(?): The required style macros are missing from wxErlang
 %% From /include/wx/generic/splash.h
 %% #define wxSPLASH_CENTRE_ON_PARENT   0x01

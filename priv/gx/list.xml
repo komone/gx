@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <gx>
 	<window id="win" title="Example - List" onunload="on_close">
-		<statusbar>list(Parent, Opts)</statusbar>
 		<panel>
 			<list label="Priority" fill="true" border="5" onselect="on_message">
 				<item label="First"/>
@@ -10,5 +9,6 @@
 			</list>
 			<button align="center" border="5" onclick="on_message"/>
 		</panel>
+		<statusbar>list(Parent, Opts)</statusbar>
 	</window>
 </gx>
