@@ -3,10 +3,13 @@ WARNING: UNSTABLE CODE
 GX is a GS-Style interface to wxErlang, the Erlang port of wxWidgets. 
 GX also introduces an HTML/XUL-style format for GUI definition. 
 
+It's probably a good idea to read this wiki entry too...
+http://wiki.github.com/komone/gx/a-bit-of-history
+
 TO GET A SNEAK PREVIEW (or at least understand where GX is going) 
 - Run erl -make (or make:all) on the gx src, and then try...
 
-1> gx:run("samples/button.xml").
+1> gx:run("samples/findreplace.xml").
 
 ...and so on :)
 
