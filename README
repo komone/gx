@@ -3,8 +3,12 @@ WARNING: UNSTABLE CODE
 GX is a GS-Style interface to wxErlang, the Erlang port of wxWidgets. 
 GX also introduces an HTML/XUL-style format for GUI definition. 
 
-The POC results were very promising, and so development of the beta 
-library is now underway.
+TO GET A SNEAK PREVIEW (or at least understand where GX is going) 
+- Run erl -make (or make:all) on the gx src, and then try...
+
+1> gx:run("samples/button.xml").
+
+...and so on :)
 
 You need:
 - EITHER: Erlang/OTP R13A which includes wxErlang 0.98. 
