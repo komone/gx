@@ -316,8 +316,8 @@ add_command(GxName, GxCallback) ->
 	undefined -> put(gx_command_index, ?wxID_HIGHEST + 1001);
 	_ -> ok
 	end,
-	%% TODO: Breaks the write once rule GAH!
-	Command = put(gx_command_index, get(gx_command_index)),
+	%% TODO: Incrementing the command index breaks the write once rule GAH!
+	Command = put(gx_command_index, get(gx_command_index) + 1),
 	undefined = put({command, Command}, {GxName, GxCallback}),
 	% error_logger:info_report([{?GX_COMMANDS, add}, {GxName, GxCallback}]),
 	Command.
@@ -466,7 +466,7 @@ set_options(Parent, Component, Opts) ->
 		% relies on the fact that Panels will return their sizer ref
 		PS = get(Parent),  
 		?wxHORIZONTAL = wxBoxSizer:getOrientation(PS),
-		io:format("!HORIZONTAL LAYOUT!~n", []),
+		% io:format("!HORIZONTAL LAYOUT!~n", []),
 		%% BUG: there's a bug here somewhere and it's in WXE I think...
 		Alignment = 
 			case get_atom(align, left, Opts) of 

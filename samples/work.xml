@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <gxml>
-	<frame id="win" title="Sizer Problems" onload="init" onunload="on_close">
+	<frame id="win" title="Sizer Problems" onload="on_init" onunload="on_close">
 		<menubar>
 		<menu id="file" label="File">
 		<item id="new" label="New" onselect="on_color"/>
@@ -10,7 +10,7 @@
 		</menubar>
 		<statusbar text="Hello, Pooper!"/>
 
-		<panel orientation="horizontal">
+		<panel layout="horizontal">
 			<button id="test" border="10" label="Press Me" onclick="on_message" />
 			<line border="10" orientation="vertical" />
 			<checkbox id="checkme" border="5" align="left" label="Check me" onselect="on_message"/>

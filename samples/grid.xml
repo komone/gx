@@ -2,24 +2,24 @@
 <gxml>
 <dialog title="GX Tutorial">
 	<panel>
-	<editor fill="true"/>
+	<textentry fill="width"/>
 	<box align="right" border="5" label="Buttons" >
 		<!--label>This is a panel</label-->
 		<panel layout="grid" rows="5" cols="4" align="center">
-				<button id="A1" label="Cls"/>
+				<button id="A1">Cls</button>
 				<button id="A2" label="Bck"/>
 				<text label=""/>
 				<button id="A3" label="Close"/>
 
-				<button id="A1" label="_7"/>
-				<button id="A2" label="_8"/>
-				<button id="A3" label="_9"/>
-				<button id="A3" label="/"/>
+				<button id="A3a" label="7"/>
+				<button id="A4" label="_8"/>
+				<button id="A5" label="_9"/>
+				<button id="A6" label="/"/>
 				
-				<button id="A1" label="_4"/>
-				<button id="A2" label="_5"/>
-				<button id="A3" label="_6"/>
-				<button id="A3" label="*"/>
+				<button id="A7" label="_4"/>
+				<button id="A8" label="_5"/>
+				<button id="A9" label="_6"/>
+				<button id="A0" label="*"/>
 				
 				<button label="_1"/>
 				<button label="_2"/>

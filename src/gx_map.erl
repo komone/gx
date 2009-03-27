@@ -230,6 +230,7 @@ super(wxPanel)               -> wxWindow;
 super(wxPreviewCanvas)       -> wxScrolledWindow;
 super(wxProgressDialog)      -> wxDialog;
 super(wxRadioBox)            -> wxControlWithItems;
+super(wxRadioButton)         -> wxControl;
 super(wxScrollBar)           -> wxControl;
 super(wxScrolledWindow)      -> wxPanel;
 super(wxSlider)              -> wxControl;
