@@ -508,8 +508,8 @@ set_options(Parent, Component, Opts) ->
 			end,
 		wxSizerFlags:align(SizerFlags, Alignment2),
 		
-		Fill1 = get_atom(fill, false, Opts),
-			case Fill1 of % for now fill="true" means fill="both"
+		Fill2 = get_atom(fill, false, Opts),
+			case Fill2 of % for now fill="true" means fill="both"
 			width -> 
 				wxSizerFlags:expand(SizerFlags);
 			height -> 
