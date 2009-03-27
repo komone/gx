@@ -31,7 +31,7 @@ process(WxRef = #wx_ref{type=Module}, FType, {Key, Value}) ->
 %%% DECOMMISSIONED!
 map_args(ArgDef, Opts) ->
 	Pred = fun(Arg, Options) -> 
-		[Result] = [Value || {Key, Value} <- Options, Key == Arg],
+		[Result] = [Value || {Key, Value} <- Options, Key =:= Arg],
 		Result
 	end,
 	[Pred(Arg, Opts) || Arg <- ArgDef].
@@ -115,9 +115,9 @@ gtype(_) -> undefined.
 instance_of(#wx_ref{type=Type}, Class) ->
 	instance_of(Type, Class);
 instance_of(Type, Class) when is_atom(Type) -> 
-	case Type == Class of
+	case Type =:= Class of
 	true -> true;
-	false when Type == undefined -> false;
+	false when Type =:= undefined -> false;
 	false -> instance_of(super(Type), Class)
 	end.
 

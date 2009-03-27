@@ -7,8 +7,10 @@
 		</menu>
 	</menubar>
 	<statusbar/>
-	<panel>
-	<button label="Hello, World!" border="10" align="center" onclick="on_click" />
+	<panel color="blue">
+	<panel align="column" fill="true">
+		<button label="Hello, World!" border="5" align="center" onclick="on_click" />
+	</panel>
 	</panel>
 </window>
 </gx>

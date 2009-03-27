@@ -12,7 +12,7 @@
   %% Maybe never: {mod, {gx_app, []}},
   {registered, [gx_components, gx_commands]},
   {env, [
-  	{resources, "priv/gx"}
+  	{resources, ["priv", "priv/gx"]}
   ]},
   {applications, [kernel, stdlib]}
 ]}.
