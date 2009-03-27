@@ -5,29 +5,35 @@
 %%
 -module(gx_xml).
 -author('steve@simulacity.com').
--vsn("0.1.0").
+-vsn("0.2").
 
 -include_lib("xmerl/include/xmerl.hrl").
--export([load/1, generate/1]).
+-export([load/1, generate/1, generate/2]).
+%
+% TODO: When the DTD/Schema is stable, add validation.
+%
 
 %% Utility function to generate gx '.gui' term file from GXML
-%% NOTE: Called by gx:gen/2
+%% NOTE: Called by gx:export/1, gx:export/2
 %% IMPL: Using ~w instead of ~p would reduce the .gui file size
-generate(File) ->
-	{ok, UI} = load(File),
-	TermFile = filename:basename(File, ".xml") ++ ".gui",
+generate(GxmlFile) ->
+	TermFile = filename:basename(GxmlFile, ".xml") ++ ".gui",
+	generate(GxmlFile, TermFile).
+%
+generate(GxmlFile, TermFile) ->
+	{ok, UI} = load(GxmlFile),
 	Terms = [io_lib:format("~p.~n", [Component]) || Component <- UI],
 	ok = file:write_file(TermFile, Terms).
 
 %% Loads a GXML file and returns it as a valid GX Term
 %% NOTE: this returns a list as you may wish to use more than one window, 
 %% specify dialogs, or have replaceable component trees at runtime...
-load(File) ->
-	{ok, Bin} = file:read_file(File),
+load(GxmlFile) ->
+	{ok, Bin} = file:read_file(GxmlFile),
 	Markup = binary_to_list(Bin),
 	{Xml, []} = xmerl_scan:string(Markup, [{space, normalize}]),
 	case Xml#xmlElement.name of 
-	gx -> 
+	gxml -> 
 		Terms = convert(Xml#xmlElement.content, []),
 		GxTerms = collapse(Terms, []),
 		{ok, GxTerms};
@@ -102,12 +108,12 @@ collapse([], Acc) ->
 %% Items are top-level elements in GXML, but as GX terms they should be a list
 %% of string-labeled 'items'
 collapse_items({Type, Opts, Children}) ->
-	Choices = [collapse_item(Attrs, Value) || {item, Attrs, Value} <- Children],
-	{Type, [{items, Choices}|Opts], []}.
+	Items = [collapse_item(Attrs, Value) || {item, Attrs, Value} <- Children],
+	{Type, [{items, Items}|Opts], []}.
 %	
 collapse_item(Attrs, []) -> proplists:get_value(label, Attrs);
 collapse_item(_, [Text|_]) when is_list(Text) -> Text.
 
-%% IMPL: Take only the first text element
+%% IMPL: Takes only the first text element
 collapse_text([Text|_], Opts) -> [{value, Text}|Opts];
 collapse_text([], Opts) -> Opts.

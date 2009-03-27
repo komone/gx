@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 <window>
 	<statusbar/>
 	<panel layout="row">
@@ -31,4 +31,4 @@
 		</tabs>
 	</panel>
 </window>
-</gx>
+</gxml>

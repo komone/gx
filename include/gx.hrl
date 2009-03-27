@@ -4,6 +4,23 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 
+%% Some missing defs in wx from R13A
+-ifndef(wxSPLASH_CENTRE_ON_PARENT).
+-define(wxSPLASH_CENTRE_ON_PARENT, 1).
+-endif.
+-ifndef(wxSPLASH_CENTRE_ON_SCREEN).
+-define(wxSPLASH_CENTRE_ON_SCREEN, 2).
+-endif.
+-ifndef(wxSPLASH_NO_CENTRE).
+-define(wxSPLASH_NO_CENTRE, 0).
+-endif.
+-ifndef(wxSPLASH_TIMEOUT).
+-define(wxSPLASH_TIMEOUT, 4).
+-endif.
+-ifndef(wxSPLASH_NO_TIMEOUT).
+-define(wxSPLASH_NO_TIMEOUT, 0).
+-endif.
+
 %% GX Event Record
 -record(gx, {
 	id = undefined, 

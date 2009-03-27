@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 <window title="GX Tutorial">
 	<menubar>
 		<menu label="File">
@@ -9,8 +9,9 @@
 	<statusbar/>
 	<panel color="blue">
 	<panel align="column" fill="true">
-		<button label="Hello, World!" border="5" align="center" onclick="on_click" />
+		<button label="Hello, World!" border="5" align="center" onclick="on_message" />
 	</panel>
+	<textentry fill="width" onsubmit="on_message">Type here</textentry>
 	</panel>
 </window>
-</gx>
+</gxml>

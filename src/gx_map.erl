@@ -12,7 +12,6 @@
 -compile(export_all).
 -export([get/3, set/3, color/1, color/2, color/3]).
 
-
 %%% DECOMMISSIONED!
 process(WxRef = #wx_ref{type=Module}, FType, {Key, Value}) ->
 	case gx_map:FType(Module) of
@@ -37,10 +36,10 @@ map_args(ArgDef, Opts) ->
 	[Pred(Arg, Opts) || Arg <- ArgDef].
 
 %
-get(WxRef = #wx_ref{type=Module}, Function, Options) ->
-	gx_map:get(Module, Function, Options, WxRef). 
-set(WxRef = #wx_ref{type=Module}, Function, Options) ->
-	gx_map:set(Module, Function, Options, WxRef). 
+get(WxRef = #wx_ref{type=WxType}, Property, Options) ->
+	gx_map:get(WxType, Property, Options, WxRef). 
+set(WxRef = #wx_ref{type=WxType}, Property, Options) ->
+	gx_map:set(WxType, Property, Options, WxRef). 
 
 
 % a first go at getter/setters for properties, rather than "undefined" try returning ancestor...?
@@ -51,7 +50,11 @@ get(wxFrame, Function, Opts, WxRef) -> get(wxTopLevelWindow, Function, Opts, WxR
 get(wxStaticText, label, [], WxRef) -> wxStaticText:getLabel(WxRef);
 get(wxStaticText, Function, Opts, WxRef) -> get(wxControl, Function, Opts, WxRef);
 %% TODO: many more
-get(_, _, _, _) -> undefined.
+get(WxType, Property, Options, WxRef) ->
+	case super(WxType) of
+	undefined -> undefined;
+	Supertype -> get(Supertype, Property, Options, WxRef)
+	end.
 
 % a first go at getter/setters for properties, rather than "undefined" try returning ancestor...?
 set(wxFrame, pos, center, WxRef) -> wxFrame:centerOnScreen(WxRef);
@@ -62,64 +65,74 @@ set(wxFrame, Function, Opts, WxRef) -> set(wxWindow, Function, Opts, WxRef);
 set(wxStaticText, label, [], WxRef) -> wxStaticText:getLabel(WxRef);
 set(wxStaticText, Function, Opts, WxRef) -> set(wxControl, Function, Opts, WxRef);
 %% TODO: many more
-set(_, _, _, _) -> undefined.
+set(WxType, Property, Options, WxRef) ->
+	case super(WxType) of
+	undefined -> undefined;
+	Supertype -> set(Supertype, Property, Options, WxRef)
+	end.
 
 
 %% TODO: These need double checking!!
 %% Map GX to WX types
-wtype(frame) -> wxFrame;
-wtype(window) -> wxFrame;
-wtype(dialog) -> wxDialog;
-wtype(panel) -> wxPanel;
-wtype(checkbox) -> wxCheckBox;
-wtype(checklist) -> wxCheckListBox;
-wtype(splashscreen) -> wxSplashScreen;
-wtype(radiobox) -> wxRadioBox;
-wtype(radiobutton) -> wxRadioButton;
-wtype(choice) -> wxChoice;
-wtype(list) -> wxListBox;
-wtype(image) -> wxStaticBitmap;
-wtype(combo) -> wxComboBox;
-wtype(box) -> wxPanel; % with a BoxSizer maybe panel box="true"?
-wtype(slider) -> wxSlider;
-wtype(spinner) -> wxSpinCtrl;
-wtype(text) -> wxStaticText;
-wtype(line) -> wxStaticLine;
-wtype(entry) -> wxTextCtrl;
-wtype(editor) -> wxStyledTextCtrl;
-wtype(_) -> undefined.
+wx_type(frame) -> wxFrame;
+wx_type(window) -> wxFrame;
+wx_type(dialog) -> wxDialog;
+wx_type(panel) -> wxPanel;
+wx_type(checkbox) -> wxCheckBox;
+wx_type(checklist) -> wxCheckListBox;
+wx_type(splashscreen) -> wxSplashScreen;
+wx_type(radiobox) -> wxRadioBox;
+wx_type(radiobutton) -> wxRadioButton;
+wx_type(choice) -> wxChoice;
+wx_type(list) -> wxListBox;
+wx_type(image) -> wxStaticBitmap;
+wx_type(combo) -> wxComboBox;
+wx_type(box) -> wxPanel; % with a BoxSizer maybe panel box="true"?
+wx_type(slider) -> wxSlider;
+wx_type(spinner) -> wxSpinCtrl;
+wx_type(text) -> wxStaticText;
+wx_type(line) -> wxStaticLine;
+wx_type(entry) -> wxTextCtrl;
+wx_type(editor) -> wxStyledTextCtrl;
+wx_type(_) -> undefined.
 
-gtype(wxButton) -> button;
-gtype(wxFrame) -> window;
-gtype(wxDialog) -> dialog;
-gtype(wxPanel) -> panel;
-gtype(wxCheckBox) -> checkbox;
-gtype(wxCheckListBox) -> checklist;
-gtype(wxSplashScreen) -> splashscreen;
-gtype(wxRadioBox) -> radiobox;
-gtype(wxRadioButton) -> radiobutton;
-gtype(wxChoice) -> wxChoice;
-gtype(wxListBox) -> list;
-gtype(wxStaticBitmap) -> image;
-gtype(wxComboBox) -> combo;
-gtype(wxSlider) -> slider;
-gtype(wxSpinCtrl) -> spinner;
-gtype(wxStaticText) -> text;
-gtype(wxStaticLine) -> line;
-gtype(wxTextCtrl) -> entry;
-gtype(wxStyledTextCtrl) -> editor;
-gtype(_) -> undefined.
+gx_type(wxButton) -> button;
+gx_type(wxFrame) -> window;
+gx_type(wxDialog) -> dialog;
+gx_type(wxPanel) -> panel;
+gx_type(wxCheckBox) -> checkbox;
+gx_type(wxCheckListBox) -> checklist;
+gx_type(wxSplashScreen) -> splashscreen;
+gx_type(wxRadioBox) -> radiobox;
+gx_type(wxRadioButton) -> radiobutton;
+gx_type(wxChoice) -> wxChoice;
+gx_type(wxListBox) -> list;
+gx_type(wxStaticBitmap) -> image;
+gx_type(wxComboBox) -> combo;
+gx_type(wxSlider) -> slider;
+gx_type(wxSpinCtrl) -> spinner;
+gx_type(wxStaticText) -> text;
+gx_type(wxStaticLine) -> line;
+gx_type(wxTextCtrl) -> entry;
+gx_type(wxStyledTextCtrl) -> editor;
+gx_type(_) -> undefined.
 
 
 %%
-instance_of(#wx_ref{type=Type}, Class) ->
-	instance_of(Type, Class);
-instance_of(Type, Class) when is_atom(Type) -> 
+instanceof(#wx_ref{type=Type}, Class) ->
+	instanceof(Type, Class);
+instanceof(Type, Class) when is_atom(Type) -> 
 	case Type =:= Class of
 	true -> true;
 	false when Type =:= undefined -> false;
-	false -> instance_of(super(Type), Class)
+	false -> instanceof(super(Type), Class)
 	end.
+	
+%%
+is_top_level(GxType) ->
+	WxType = wx_type(GxType),
+	instanceof(WxType, wxTopLevelWindow).
+
 
 %% More concise alternative to wxXXX:parent().
 %% Note that any object that is subclassed from
@@ -262,7 +275,6 @@ color([R, G, B]) ->
 	color(R, G, B);
 color([R, G, B, A]) -> 
 	{R, G, B, A};
-
 %% ATTRIBUTE COLOR NAMES
 %% HTML 4: aqua, black, blue, fuchsia, gray, green, lime, maroon, 
 %%         navy, olive, purple, red, silver, teal, white, yellow

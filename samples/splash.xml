@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<frame pos="center" onload="splash">
 	
 	</frame>
-</gx>
+</gxml>

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 <frame title="EIDE">
 	<statusbar/>
 	<panel orientation="horizontal">
@@ -10,4 +10,4 @@
 	</tabs>
 	</panel>
 </frame>
-</gx>
+</gxml>

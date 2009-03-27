@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<window id="win" 
 			title="GXML TEST" 
 			icon="feed.png" 
@@ -29,4 +29,4 @@
 		</tabs>
 		<statusbar text="Ready"/>
 	</window>
-</gx>
+</gxml>

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<window title="GX Example - tree.xml">
 		<panel layout="row">
 			<panel width="2" height="400"/>
@@ -11,4 +11,4 @@
 			</panel>
 		</panel>
 	</window>
-</gx>
+</gxml>

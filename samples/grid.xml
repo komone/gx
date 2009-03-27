@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 <dialog title="GX Tutorial">
 	<panel>
 	<editor fill="true"/>
@@ -34,4 +34,4 @@
 	</box>
 	</panel>
 </dialog>
-</gx>
+</gxml>

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<frame id="win" 
 			title="Sudoku"
 			icon="feed.png"
@@ -52,4 +52,4 @@
 		<statusbar text="Good Luck!"/>
 	</frame>
 	<!--dialog id="dialog_app"></dialog-->
-</gx>
+</gxml>

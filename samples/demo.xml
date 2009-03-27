@@ -2,4 +2,4 @@
 <gx module="gx_demo">
 	<window pos="center" onload="splash">
 	</window>
-</gx>
+</gxml>

@@ -4,11 +4,15 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_runner).
--vsn("0.1").
+-vsn("0.2").
 -author("steve@simulacity.com").
 
 -export([start/1]).
 -compile(export_all).
+
+%%
+%% TODO: Although simple for now, I have big plans for gx_runner
+%%
 
 %%
 start(File) ->

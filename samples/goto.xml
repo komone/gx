@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<dialog title="Go To Class" pos="center">
 	<panel>
 		<panel layout="row">
@@ -19,4 +19,4 @@
 		</panel>
 	</panel>
 	</dialog>
-</gx>
+</gxml>

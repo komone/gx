@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<frame title="Example: radiobox" onunload="on_close">
 	<statusbar/>
 	<panel layout="horizontal">
@@ -7,4 +7,4 @@
 		<panel width="100" height="100" color="blue"/>
 	</panel>
 	</frame>
-</gx>
+</gxml>

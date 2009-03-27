@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 <dialog id="findreplace" title="Find/Replace" pos="center" onunload="on_close">
 	<panel>
 		<panel layout="grid" cols="2" rows="2" border="5">
@@ -36,4 +36,4 @@
 		<button id="closebutton" border="10" align="right" label="Close" onclick="on_close"/>
 	</panel>
 </dialog>
-</gx>
+</gxml>

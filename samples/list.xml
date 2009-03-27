@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<window id="win" title="Example - List" onunload="on_close">
 		<panel>
 			<list label="Priority" fill="true" border="5" onselect="on_message">
@@ -11,4 +11,4 @@
 		</panel>
 		<statusbar>list(Parent, Opts)</statusbar>
 	</window>
-</gx>
+</gxml>

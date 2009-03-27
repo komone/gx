@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<frame title="Example: radiobox" onunload="on_close">
 		<statusbar>RadioBox Example</statusbar>
 		<panel>
@@ -11,4 +11,4 @@
 			<button align="center" border="5" onclick="on_message"/>
 		</panel>
 	</frame>
-</gx>
+</gxml>

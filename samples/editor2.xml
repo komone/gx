@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<window>
 		<menubar>
 			<menu label="File">
@@ -22,4 +22,4 @@
 			</panel>
 		</panel>
 	</window>
-</gx>
+</gxml>

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<frame id="win" title="Sizer Problems" onload="init" onunload="on_close">
 		<menubar>
 		<menu id="file" label="File">
@@ -20,4 +20,4 @@
 			<radiobutton border="5" align="left" label="Try me" onselect="on_message"/>
 		</panel>
 	</frame>
-</gx>
+</gxml>

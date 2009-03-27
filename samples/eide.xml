@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 <frame title="EIDE">
 	<menubar>
 		<menu label="File"/>
@@ -30,4 +30,4 @@
 	<panel>
 	</panel>
 </frame>
-</gx>
+</gxml>

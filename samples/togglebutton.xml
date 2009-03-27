@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<window title="GX ToggleButton">
 		<panel>
 			<togglebutton onclick="on_message"/>
 		</panel>
 	</window>
-</gx>
+</gxml>

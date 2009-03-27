@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx>
+<gxml>
 	<frame 
 		id="win"
 		title="GX Demo" 
@@ -30,4 +30,4 @@
 		</panel>
 		<statusbar text="Welcome to GX"/>
 	</frame>
-</gx>
+</gxml>

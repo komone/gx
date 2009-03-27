@@ -11,4 +11,4 @@
 			<radiobutton label="test a radiobutton" border="10" onselect="on_message" />
 		</panel>
 	</window>
-</gx>
+</gxml>
