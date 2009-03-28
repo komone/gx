@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<gxml>
+	<frame>
+		<menubar>
+			<menu label="File">
+				<item label="Quit" onselect="on_close"/>
+			</menu>
+		</menubar>
+		<panel width="400" height="250"/>
+	</frame>
+</gxml>

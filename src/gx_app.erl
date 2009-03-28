@@ -1,8 +1,10 @@
 %%
 %% GX Framework
-%% Copyright 2009 <steven.charles.davis@gmail.com>. All rights reserved.
-%% LICENSE: The correct license type has not yet been determined.
+%% Copyright (c) 2009 Steve Davis <steven.charles.davis@gmail.com>. All rights reserved.
+%% LICENSE: Creative Commons Non-Commercial License V 3.0 
+%% http://creativecommons.org/licenses/by-nc/3.0/us/
 %%
+
 -module(gx_app).
 -vsn("0.3").
 -author('steve@simulacity.com').

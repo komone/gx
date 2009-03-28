@@ -1,6 +1,7 @@
 *.dump
 *.beam
 *.out
+*.log
 Thumbs.db
 work/*
 .DS_Store
