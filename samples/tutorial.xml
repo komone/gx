@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<gx module="?maybe?" onerror="error">
+<gxml module="?maybe?" onerror="error">
 	<window id="win" pos="center" title="GX Tutorial" onunload="on_exit">
 		<!-- 
 		-->

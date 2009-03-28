@@ -1,9 +1,60 @@
 <?xml version="1.0"?>
 <gxml>
-<frame>
-	<panel border="20">
-		<text align="center" label="Hello, World"/>
-		<line width="200" height="2"/>
-	</panel>
-</frame>
+	<window title="EIDE - The Erlang Editor">
+		<menubar>
+			<menu id="file" label="File">
+				<item label="New" onselect="on_message"/>
+				<item label="Open..." onselect="on_open"/>
+				<item label="Save" onselect="on_message"/>
+				<item label="Save As..." onselect="on_message"/>
+				<item label="Close" onselect="on_message"/>
+				<separator/>
+				<item label="Exit" onselect="on_close"/>
+			</menu>
+			<menu id="edit" label="Edit">
+				<item label="Undo" onselect="on_message"/>
+				<separator/>
+				<item label="Cut" enabled="false" onselect="on_message"/>
+				<item label="Copy" enabled="false" onselect="on_message"/>
+				<item label="Paste" enabled="false" onselect="on_message"/>
+				<separator/>
+				<item label="Select All" enabled="false" onselect="on_message"/>
+			</menu>
+			<menu id="help" label="Help">
+				<item label="About" enabled="false" onselect="on_message"/>
+			</menu>
+		</menubar>
+		<toolbar/>
+		<statusbar>Welcome to GX</statusbar>
+		<panel layout="row">
+			<tabs fill="height">
+			<item label="Files">
+			<tree label="Root" width="200" fill="height">
+				<item>This</item>
+				<item>That</item>
+				<item type="folder" values="More">
+					<item>The Other</item>
+					<item>Finally</item>
+				</item>
+			</tree>
+			</item>
+			<item label="Modules"><panel/></item>
+			</tabs>
+			<panel fill="both">
+				<tabs fill="both">
+					<item label="Untitled">
+						<textentry multi="true" width="600" height="400" fill="both"/>
+					</item>
+				</tabs>
+				<tabs height="200" fill="width">
+					<item label="Console">
+						<textentry multi="true" height="200" fill="width"/>
+					</item>
+					<item label="Problems">
+						<panel height="200" fill="width"/>
+					</item>
+				</tabs>
+			</panel>
+		</panel>
+	</window>
 </gxml>

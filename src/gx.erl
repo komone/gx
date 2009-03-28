@@ -4,16 +4,23 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx).
--version("0.2").
+-vsn("0.3").
 -author('steve@simulacity.com').
 
 -include("../include/gx.hrl").
 -include_lib("wx/include/wx.hrl").
 
+-behavior(gen_server).
+
 %% Original Definiton of wx_ref is in the'hidden' header file wx/src/wxe.hrl
 -record(wx_ref, {ref, type, state=[]}).
 
--compile(export_all).
+-compile(export_all). % for now...
+
+% gen_server
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+	terminate/2, code_change/3]).
+
 -export([start/2, create_tree/1, create/3, destroy/2]).
 -export([ % Components
 	window/2, dialog/2,
@@ -26,6 +33,7 @@
 
 %% TODO: remove?
 -define(GX_WINDOW_EVENTS, [{onunload, close_window}]).
+
 %
 % Convenience functions
 %
@@ -33,36 +41,12 @@
 %
 run(File) ->
 	gx_runner:start(File).
-
 %
 gen(XmlFile) ->
 	gx_xml:generate(XmlFile).
-	
-%
-info(GxName, Component) ->
-	error_logger:info_report([
-		{process, self()}, 
-		{created, GxName}, 
-		{component, Component}, 
-		{resource_paths, gx_util:get_resource_paths()}]).
-
-% TODO: here is proof that gx should be a gen_server
-registry(Pid) when is_pid(Pid) ->
-	case is_process_alive(Pid) of
-	true ->
-		Pid ! {gx, self(), call, registry, []},
-		receive
-		Msg -> io:format("~p~n", [Msg])
-		after 2000 -> no_response
-		end;
-	false -> no_process
-	end.
-	
-registry() ->
-	get().
 
 %%
-%% Core GUI startup and event loop
+%% Core GUI startup
 %%
 start() ->
 	case erlang:system_info(smp_support) of 
@@ -79,20 +63,150 @@ start() ->
 		{error, no_smp}
 	end.
 
+%% Spawn a GUI server
+start(Module, UI) when is_atom(Module), is_list(UI) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Module, UI], []).
+
+%%
 stop() ->
-	try
-		wx:destroy()
-	catch
-		_:_ -> {ok, already_stopped}
-	end.
+    gen_server:call(?MODULE, stop).
+
+
+%% NOTE: Diverges from GS as there are extended use cases 
+%% for example, gx:read(listbox, selected, [{item, 0}]).
+% read/2
+read(GxName, Property) ->
+	read(GxName, Property, []).
+% read/3
+read(GxName, Property, Opts) when is_atom(GxName), is_tuple(Opts) ->
+	read(GxName, Property, [Opts]);
+read(GxName, Property, Opts) when is_atom(Property), is_list(Opts) ->
+	gen_server:call(?MODULE, {read, GxName, Property, Opts}).
+
+%% TODO: Extended use case example would be...
+%% gx:config(listbox, [{selected, [{item, 0}]}, {style, blah}]).
+% config/2
+config(GxName, Properties) when is_tuple(Properties) ->
+	config(GxName, [Properties]);
+config(GxName, Properties) when is_list(Properties) ->
+	gen_server:call(?MODULE, {config, GxName, Properties}).
+
+%
+registry() ->
+	gen_server:call(?MODULE, registry).
+%	 
+names() ->
+	gen_server:call(?MODULE, names).
 	
-%% Spawn a GUI process instance
-start(Module, GUI) when is_atom(Module), is_list(GUI) ->
-	gx:start(),
-	spawn_link(?MODULE, init, [Module, GUI]). %% TODO: or just spawn...
+%%
+%% Callbacks for gen_server
+%%
+
+%%
+init([Module, GUI]) ->
+	Window = init_component(Module, GUI),
+	{ok, {Module, Window}}.
+%%
+handle_call(stop, _From, State) -> 
+	catch(wx:destroy()),
+    {stop, normal, stopped, State};
+handle_call({read, Ref = #wx_ref{}, Property, Opts}, _From, State) ->
+	Reply = gx_map:get(Ref, Property, Opts),
+	{reply, Reply, State};
+handle_call({read, GxName, Property, Opts}, _From, State) when is_atom(GxName) ->
+	Reply = 
+		case lookup(GxName) of
+		Ref = #wx_ref{} -> gx_map:get(Ref, Property, Opts);
+		_ -> undefined
+		end,
+	{reply, Reply, State};
+handle_call({config, Ref = #wx_ref{}, PropertyList}, _From, State) ->
+	Reply = [gx_map:set(Ref, Property, Opts) || {Property, Opts} <- PropertyList],
+	{reply, Reply, State};
+handle_call({config, GxName, PropertyList}, _From, State) ->
+	Reply = 
+		case lookup(GxName) of
+		Ref = #wx_ref{} -> 
+			[gx_map:set(Ref, Property, Opts) || {Property, Opts} <- PropertyList];
+		_ -> undefined
+		end,
+	{reply, Reply, State};
+handle_call(registry, _From, State) ->
+	{reply, get(), State};
+handle_call(names, _From, State) ->
+	SystemNames = [wx_env, gx, gx_paths, gx_icons, gx_iconmap, gx_command_index],
+	Names = [X || {X, _} <- get(), is_atom(X), lists:member(X, SystemNames) =:= false],
+	{reply, Names, State};
+handle_call(_Req, _From, State) ->
+    {reply, {error, badrequest}, State}.
+%%
+handle_cast(_Req, State) ->
+%	io:format("CAST -> ~p~n", [Req]),
+    {noreply, State}.
+%% WX Event handling
+handle_info(Evt = #wx{}, State) ->
+	%io:format("wxEvent: ~p~n", [Evt]), 
+	%%% TODO: IN NEED OF REVIEW AND MORE WORK!
+	Handler = 
+		case Evt#wx.event of 
+		#wxClose{} when is_tuple(Evt#wx.userData) ->
+			Evt#wx.userData;
+		#wxClose{} ->
+			{gx, exit};
+		#wxCommand{} when is_tuple(Evt#wx.userData) ->
+			Evt#wx.userData;
+		#wxCommand{} -> % menu events
+			lookup_command(Evt#wx.id)
+		end,
+		
+	{Module, Window} = State,	
+	case validate_handler(Module, Handler) of
+	{gx, exit} ->
+%		destroy(Window, undefined),
+		{stop, normal, State};
+	{GxName, GxEvent, Callback} ->
+		GxEvt = translate_event(Evt, GxName, GxEvent, Callback),
+		case Module:Callback(Window, GxEvt) of 
+		exit -> 
+%			destroy(Window, GxName),
+			{stop, normal, State};
+		ok -> 
+			{noreply, State};
+		Value -> 
+			error_logger:error_report([
+				{invalid_callback, Callback}, {value, Value}]),
+			{noreply, State}
+		end;
+	undefined ->
+		error_logger:error_report([{invalid_handler, Handler}]),
+		{noreply, State}
+	end;
+%%
+handle_info(Req, State) ->
+	io:format("INFO -> ~p~n", [Req]),
+    {noreply, State}.
+%%
+code_change(_Vsn, State, _Extra) ->
+    {ok, State}.
+%%
+terminate(_Reason, State) ->
+	try begin
+		case get(gx_icons) of
+		Ref = #wx_ref{} -> wxImageList:destroy(Ref);
+		_ -> ignore
+		end,
+		error_logger:info_report([
+			{process, self()},
+			{destroyed, State}
+		]),
+		wx:destroy()
+	end catch
+		_:_ -> {ok, already_stopped}
+	end,
+    ok.
 
 %% if we have a term definition, load the UI...
-init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
+init_component(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
 	case T of 
 	[] -> ok;
 	%% TODO: Keep the following reminder until more than a single top level component
@@ -100,67 +214,17 @@ init(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
 	T -> error_logger:warning_report([{unparsed_components, T}])
 	end,
 	
-	Window = gx:create_tree(GxTerm),	
+	Window = gx:create_tree(GxTerm),
 
 	% trigger the gx:onload event
 	do_init_handler(Module, Window, GxTerm),
-	% do main loop
-	loop(Module, Window);
+	% return the state!
+	Window;
 % ...or else load the xml file definition
-init(Module, File) when is_list(File) ->
+init_component(Module, File) when is_list(File) ->
 	{ok, Resource} = gx_util:find_resource(File),
 	{ok, TermList} = gx_xml:load(Resource),
-	init(Module, TermList).
-
-%% The main event loop for the GUI process instance
-loop(Module, Window) when is_atom(Module) ->
-    receive 
-	%% DEBUG
-	Evt = #wx{} ->
-		io:format("wxEvent: ~p~n", [Evt]), 
-		%%% TODO: IN BAD NEED OF REVIEW AND MORE WORK!
-		Handler = 
-			case Evt#wx.event of 
-			#wxClose{} when is_tuple(Evt#wx.userData) ->
-				Evt#wx.userData;
-			#wxClose{} ->
-				{gx, exit};
-			#wxCommand{} when is_tuple(Evt#wx.userData) ->
-				Evt#wx.userData;
-			#wxCommand{} -> % menu events
-				lookup_command(Evt#wx.id)
-			end,
-		
-		case validate_handler(Module, Handler) of
-		{gx, exit} ->
-			destroy(Window, undefined);
-		{GxName, GxEvent, Callback} ->
-			GxEvt = translate_event(Evt, GxName, GxEvent, Callback),
-			case Module:Callback(Window, GxEvt) of 
-			exit -> 
-				destroy(Window, GxName);
-			ok -> 
-				loop(Module, Window);
-			Value -> 
-				error_logger:error_report([
-					{invalid_callback, Callback}, {value, Value}]),
-				loop(Module, Window)
-			end;
-		undefined ->
-			error_logger:error_report([
-				{invalid_handler, Handler}]),
-			loop(Module, Window)
-		end;
-	{gx, Pid, call, F, A} ->  %% NOTE:Debug Use only
-		Pid ! {F, self(), apply(gx, F, A)},
-		loop(Module, Window);
-	Evt ->
-		error_logger:error_report([{invalid_event, Evt}]),
-		loop(Module, Window)
-    after 1000 ->
-		% check on externally updated files?
-		loop(Module, Window)
-    end.
+	init_component(Module, TermList).
 
 % Get a valid handler function for an event, if one is available
 % It would probably be better to do all this at creation time, if possible
@@ -212,7 +276,7 @@ do_init_handler(Module, Parent, {_, Options, _}) ->
 		false -> {error, no_callback_handler}
 		end
 	end.
-
+	
 %
 % Core Utility Functions
 % The following functions are to extract all the generic code from the
@@ -346,36 +410,6 @@ connect_callbacks(WxType, GxName, Component, [{GxEvent, WxEvent, GxHandler}|T]) 
 connect_callbacks(_, _, _, []) -> 
 	ok.
 
-%% NOTE: This will disappear in the gen_server refactor
-%% Generic property getter/setter
--record(gx_ref, {pid, id, wx}).
-
-%% WARNING: these include experimental remote code!
-%% Extended use case: gx:read(listbox, selected, [{item, 0}]).
-%% read/2
-read(Gx = #gx_ref{}, Property) ->
-	Gx#gx_ref.pid ! {Gx, Property};
-read(IdOrRef, Property) -> read(IdOrRef, Property, []).
-% read/3
-read(GxName, Property, Opts) when is_tuple(Opts) ->
-	read(GxName, Property, [Opts]);
-read(GxName, Property, Opts) when is_atom(GxName) ->
-	read(lookup(GxName), Property, Opts);
-read(WxRef = #wx_ref{}, Property, Opts) when is_atom(Property), is_list(Opts) ->
-	gx_map:get(WxRef, Property, Opts).
-
-%% WARNING: these include experimental remote code!
-%% Extended use case: gx:config(listbox, [{selected, [{item, 0}]}, {style, blah}]).
-% config/2
-config(Gx = #gx_ref{}, Property) ->
-	Gx#gx_ref.pid ! {Gx, Property};
-config(GxName, Properties) when is_atom(GxName) -> 
-	config(lookup(GxName), Properties);
-config(WxRef, Properties) when is_tuple(Properties) ->
-	config(WxRef, [Properties]);
-config(WxRef = #wx_ref{}, Properties) when is_list(Properties) ->
-	[gx_map:set(WxRef, Property, Opts) || {Property, Opts} <- Properties].
-
 %
 % The Generic GX create/destroy functions
 %
@@ -389,6 +423,7 @@ create_tree({GxType, Opts, Children}) ->
 	case gx_map:is_top_level(GxType) of
 	true -> 
 		Gx = gx:start(),
+		undefined = put(gx, Gx),
 		wx:batch(fun() -> 
 			Window = ?MODULE:GxType(Gx, Opts),
 			create_tree(Window, Children),
@@ -404,7 +439,11 @@ create_tree({GxType, Opts, Children}) ->
 			[X, Y] -> wxTopLevelWindow:move(Window, X, Y)
 			end,
 			
-			info(get_atom(id, Opts), Window),
+			error_logger:info_report([
+				{process, self()}, 
+				{created, get_atom(id, Opts)}, 
+				{component, Window}, 
+				{resource_paths, gx_util:get_resource_paths()}]),
 			
 			case get_boolean(show, true, Opts) of 
 			true -> wxTopLevelWindow:show(Window);
@@ -953,8 +992,12 @@ tree(Parent, Opts) ->
 	Index when is_integer(Index) -> 
 		wxTreeCtrl:addRoot(Tree, Label, [{image, Index}])
 	end,
+	X = get_integer(width, -1, Opts),
+	Y = get_integer(height, -1, Opts),
+	wxControl:setMinSize(Tree, {X, Y}),
+		
 	%wxTreeCtrl:expand(Tree, Root), % NOTE: WX doesn't like this here!
-	ok = set_options(Parent, Tree, [{fill, true}|Opts]),
+	ok = set_options(Parent, Tree, Opts),
 	gx:register(GxName, Tree, Parent). 
 	
 %%	
@@ -1023,7 +1066,7 @@ menuitem(Parent = #wx_ref{type=wxMenu}, Opts) ->
 	end,
 	Checked = get_boolean(checked, false, Opts),
 	wxMenuItem:check(Item, [{check, Checked}]),
-	Enabled = get_boolean(enable, true, Opts),
+	Enabled = get_boolean(enabled, true, Opts),
 	wxMenuItem:enable(Item, [{enable, Enabled}]),
 	gx:register(GxName, Item, Parent).
 
