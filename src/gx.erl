@@ -55,14 +55,7 @@ gen(XmlFile) ->
 start() ->
 	case erlang:system_info(smp_support) of 
 	true -> 
-		Root = wx:new(), % minimally		
-		%% TODO - For now, just get access to the environment
-		%% for resource loading purposes..
-		case application:get_application(?MODULE) of
-		{ok, ?MODULE} -> ok;
-		_ -> application:load(?MODULE)
-		end,
-		Root;
+		wx:new();
 	false ->
 		{error, no_smp}
 	end.
@@ -73,8 +66,12 @@ start(Module, UI) when is_atom(Module), is_list(UI) ->
 
 %% Spawn a NAMED GUI server (singleton)
 start(Name, Module, UI) when is_atom(Module), is_list(UI) ->
-    gen_server:start_link({local, Name}, ?MODULE, [Module, UI], []).
-
+	case erlang:system_info(smp_support) of 
+	true -> 
+		gen_server:start_link({local, Name}, ?MODULE, [Module, UI], []);
+	false ->
+		{error, no_smp}
+	end.
 %%
 stop() ->
 	stop(?MODULE).
