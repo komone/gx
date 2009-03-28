@@ -4,8 +4,8 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_runner).
--vsn("0.2").
--author("steve@simulacity.com").
+-vsn("0.3").
+-author('steve@simulacity.com').
 
 -export([start/1]).
 -compile(export_all).
@@ -17,7 +17,9 @@
 %%
 start(File) ->
 	gx:start(?MODULE, File). 
-
+start(Name, File) ->
+	gx:start(Name, ?MODULE, File).
+	
 %%
 %% Callbacks
 %%
@@ -39,10 +41,9 @@ on_about(Gx, Event) ->
 	print(Event),
 	Attrs = ?MODULE:module_info(attributes),
 	Version = proplists:get_value(vsn, Attrs),
-	Author = proplists:get_value(author, Attrs),
     OS = wx_misc:getOsDescription(),
 	Text = lists:flatten(["GX Runner, Version ", Version, 
-		"\nAuthor: ", Author, "\n", OS]),
+		"\nAuthor: Steve Davis\n", OS]),
 	gx:alert(Gx, Text, [{title, "About GX Runner"}]).
 
 on_open(Gx, _Event) ->

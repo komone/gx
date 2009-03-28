@@ -12,7 +12,7 @@
   %% Maybe never: {mod, {gx_app, []}},
   {registered, []},
   {env, [
-  	{resources, ["priv", "priv/gx"]}
+  	{resources, ["priv", "priv/gx", "priv/gx/icons"]}
   ]},
   {applications, [kernel, stdlib, wx]}
 ]}.

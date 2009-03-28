@@ -56,24 +56,30 @@ get_string(Key, Default, Opts) ->
 %% File system resource access
 %%
 
-%% TODO: Change this as its'a complete hack!!
+%% TODO: This is currently locked to "icons" directories and ".gif" format...
 load_icons() ->
 	case get(gx_icons) of
 	undefined ->
-		{ok, WxeIcon} = find_resource("wxe.xpm"),
-		IconPath = filename:join(filename:dirname(WxeIcon), "icons"),
-		{ok, Files} = file:list_dir(IconPath),
-		IconList = [filename:join(IconPath, X) || X <- Files, filename:extension(X) == ".gif"],
-		Icons = [{list_to_atom(filename:basename(Icon, ".gif")), 
+		IconPaths = [P || P <- get(gx_paths)],
+		IconList = load_icons(IconPaths, ".gif", []),
+		Icons = [{list_to_atom(filename:basename(Icon, ".gif")),
 			wxBitmap:new(Icon, [{type, ?wxBITMAP_TYPE_GIF}])} || Icon <- IconList],
 		ImageList = wxImageList:new(16, 16), %, [{mask, false}, {initial_count, length(Icons)}]).
 		IconMap = [{GxName, wxImageList:add(ImageList, WxIcon)} || {GxName, WxIcon} <- Icons],
 		put(gx_iconmap, IconMap),
 		put(gx_icons, ImageList),
+		%io:format("LOADED ICONS...~n~p~n", [IconList]),
 		ImageList;
 	Value ->
 		Value
 	end.
+load_icons([Path|Rest], Ext, Acc) ->
+	{ok, Files} = file:list_dir(Path),
+	Icons = [filename:join(Path, Icon) || Icon <- Files,
+		filename:extension(Icon) =:= Ext],
+	load_icons(Rest, Ext, lists:append(Acc, Icons));
+load_icons([], _, Acc) ->
+	Acc.
 
 %%
 get_resource(image, Opts) -> 
@@ -101,14 +107,15 @@ image_type(_)      -> ?wxBITMAP_TYPE_INVALID.
 % TODO?: <myappdir>/<myrsrcpath>/*recursive/<myfile>
 % <myappdir>/<mypath>/<myfile>
 % <gxapp>/<gxrsrcpath>/<myfile>
-get_resource_paths() ->
+set_resource_paths(Module) -> 
 	case get(gx_paths) of 
 	undefined ->
+		application:load(Module),
 		AppPaths =
-		case application:get_application() of
+		case application:get_application(Module) of
 		{ok, App} ->
 			LibPath = code:lib_dir(App),
-			case application:get_env(resources) of 
+			case application:get_env(Module, resources) of 
 			{ok, Paths} -> 
 				[LibPath | [filename:join([LibPath, P]) || P <- Paths]];
 			undefined -> 
@@ -116,6 +123,8 @@ get_resource_paths() ->
 			end;
 		undefined -> []
 		end,
+		
+		application:load(?GX_APPLICATION),
 		GxPaths = 
 		case application:get_env(?GX_APPLICATION, resources) of
 		{ok, Paths2} ->
@@ -128,14 +137,14 @@ get_resource_paths() ->
 		AllPaths = lists:append([[WorkDir], AppPaths, GxPaths]),
 		%% Nuke dupes
 		UniquePaths = sets:to_list(sets:from_list(AllPaths)),
-		undefined = put(gx_paths, lists:sort(UniquePaths)),
+		undefined = put(gx_paths, lists:sort(UniquePaths)),		
 		get(gx_paths);
 	Value -> Value
 	end.
 
 %
-find_resource(File) ->
-	find_file([filename:join(X, File) || X <- get_resource_paths()]).
+find_resource(File) -> 
+	find_file([filename:join(X, File) || X <- get(gx_paths)]).
 
 %
 find_file([H|T]) ->

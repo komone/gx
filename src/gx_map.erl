@@ -4,6 +4,8 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_map).
+-vsn("0.3").
+-author('steve@simulacity.com').
 
 -include_lib("wx/include/wx.hrl").
 % IMPL: wxe.hrl is hidden so redefine...

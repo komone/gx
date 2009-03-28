@@ -42,6 +42,10 @@
 run(File) ->
 	gx_runner:start(File).
 %
+run(Name, File) ->
+	gx_runner:start(Name, File).
+
+%
 gen(XmlFile) ->
 	gx_xml:generate(XmlFile).
 
@@ -56,7 +60,7 @@ start() ->
 		%% for resource loading purposes..
 		case application:get_application(?MODULE) of
 		{ok, ?MODULE} -> ok;
-		undefined -> application:load(?MODULE)
+		_ -> application:load(?MODULE)
 		end,
 		Root;
 	false ->
@@ -65,11 +69,17 @@ start() ->
 
 %% Spawn a GUI server
 start(Module, UI) when is_atom(Module), is_list(UI) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Module, UI], []).
+	start(?MODULE, Module, UI).
+
+%% Spawn a NAMED GUI server (singleton)
+start(Name, Module, UI) when is_atom(Module), is_list(UI) ->
+    gen_server:start_link({local, Name}, ?MODULE, [Module, UI], []).
 
 %%
 stop() ->
-    gen_server:call(?MODULE, stop).
+	stop(?MODULE).
+stop(Name) ->
+    gen_server:call(Name, stop).
 
 
 %% NOTE: Diverges from GS as there are extended use cases 
@@ -93,10 +103,14 @@ config(GxName, Properties) when is_list(Properties) ->
 
 %
 registry() ->
-	gen_server:call(?MODULE, registry).
+	registry(?MODULE).
+registry(Name) -> 
+	gen_server:call(Name, registry).
 %	 
-names() ->
-	gen_server:call(?MODULE, names).
+names() -> 
+	names(?MODULE).
+names(Name) ->
+	gen_server:call(Name, names).
 	
 %%
 %% Callbacks for gen_server
@@ -104,6 +118,8 @@ names() ->
 
 %%
 init([Module, GUI]) ->
+	gx_util:set_resource_paths(Module),
+%	io:format("PATHS: ~p~n", []), 
 	Window = init_component(Module, GUI),
 	{ok, {Module, Window}}.
 %%
@@ -134,7 +150,9 @@ handle_call({config, GxName, PropertyList}, _From, State) ->
 handle_call(registry, _From, State) ->
 	{reply, get(), State};
 handle_call(names, _From, State) ->
-	SystemNames = [wx_env, gx, gx_paths, gx_icons, gx_iconmap, gx_command_index],
+	SystemNames = [wx_env, 
+		gx, gx_paths, gx_icons, gx_iconmap, gx_command_index, 
+		'$ancestors', '$initial_call'],
 	Names = [X || {X, _} <- get(), is_atom(X), lists:member(X, SystemNames) =:= false],
 	{reply, Names, State};
 handle_call(_Req, _From, State) ->
@@ -443,7 +461,7 @@ create_tree({GxType, Opts, Children}) ->
 				{process, self()}, 
 				{created, get_atom(id, Opts)}, 
 				{component, Window}, 
-				{resource_paths, gx_util:get_resource_paths()}]),
+				{resource_paths, get(gx_paths)}]),
 			
 			case get_boolean(show, true, Opts) of 
 			true -> wxTopLevelWindow:show(Window);

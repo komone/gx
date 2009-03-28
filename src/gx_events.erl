@@ -1,4 +1,10 @@
 -module(gx_events).
+-vsn("0.3").
+-author('steve@simulacity.com').
+
+%% NOTE: This module is not used, and may never 
+%% need to be used
+
 -export([wx/1]).
 
 wx(calendar_day_changed) -> undefined;

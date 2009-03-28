@@ -4,8 +4,8 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_xml).
+-vsn("0.3").
 -author('steve@simulacity.com').
--vsn("0.2").
 
 -include_lib("xmerl/include/xmerl.hrl").
 -export([load/1, generate/1, generate/2]).

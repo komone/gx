@@ -4,6 +4,6 @@
 %% LICENSE: The correct license type has not yet been determined.
 %%
 -module(gx_app).
--version("0.2").
+-vsn("0.3").
 -author('steve@simulacity.com').
 
