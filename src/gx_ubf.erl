@@ -14,28 +14,12 @@
 
 
 encode(Term = #gx{}) ->
-	[String, Int, Long] = Term#gx.data,
-	
-	Id = case Term#gx.id of
-	Value when is_integer(Value) -> integer_to_list(Value);
-	Value when is_atom(Value) -> [$", atom_to_list(Value), $"]
-	end,
-	
-	lists:flatten([
-		"{\"gx\": ",
-			"[\"id\": ", Id, ",",
-			" \"type\": \"", atom_to_list(Term#gx.type), "\",",
-			" \"event\": \"", atom_to_list(Term#gx.event), "\",",
-			" \"data\": [\"", 
-				String, "\",", 
-				integer_to_list(Int), ",",
-				integer_to_list(Long), "]",
-			" \"user\": ", parse_term(Term#gx.user), ""
-		"]}"]).
+	ubf:encode(Term).
 
 decode(UBF) ->
-	{ok, UBF}.
-
-parse_term(Term) ->
+	{done, Term, []} = ubf:decode(UBF),
 	Term.
+
+%placeholder
+%parse_term(Term) -> Term.
 	

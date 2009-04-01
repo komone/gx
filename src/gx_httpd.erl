@@ -119,7 +119,7 @@ do(Request) ->
 
 %placeholder
 process(UBF) ->
-	case ubf:decode(UBF) of
-	{done, #gx{}, []} -> ubf:encode({gx, {status, ok}});
-	_ -> ubf:encode({gx, {status, nak}})
+	case gx_ubf:decode(UBF) of
+	#gx{} -> gx_ubf:encode({gx, {status, ok}});
+	_ -> gx_ubf:encode({gx, {status, nak}})
 	end.
