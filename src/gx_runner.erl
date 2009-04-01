@@ -7,20 +7,35 @@
 -module(gx_runner).
 -vsn("0.3").
 -author('steve@simulacity.com').
-
--export([start/1]).
+-include("../include/gx.hrl").
+-export([start/0, start/1, browse/1]).
 -compile(export_all).
 
 %%
-%% TODO: Although simple for now, I have big plans for gx_runner
 %%
+
+start() ->
+	gx:start(?MODULE, "www/gx/browser.xml").
 
 %%
 start(File) ->
 	gx:start(?MODULE, File). 
 start(Name, File) ->
 	gx:start(Name, ?MODULE, File).
-	
+
+
+%%
+browse(URL) ->
+	case http:request(get, {URL, [{"connection", "close"}]}, [], []) of
+	{ok, {{_, 200, _}, _, XML}} ->	
+		{ok, TermList} = gx_xml:parse(XML),
+		gx:start(list_to_atom(filename:basename(URL, ".xml")), ?MODULE, TermList);
+	{ok, {Status, _, _}} ->
+		io:format("Response: ~p~n", [Status]);
+	{error, Reason} -> 
+		io:format("Request Error: ~p~n", [Reason])
+	end.
+
 %%
 %% Callbacks
 %%
@@ -52,31 +67,40 @@ on_open(Gx, _Event) ->
 	io:format("FILE CHOSEN ~p~n", [String]).
 
 on_font(Gx, _Event) ->
-	Font = gx:fontdialog(Gx, []),
+	Font = #font{} = gx:fontdialog(Gx, []),
 	io:format("FONT CHOSEN ~p~n", [Font]).
 
 on_color(Gx, _Event) ->
 	Color = gx:colordialog(Gx, []),
 	io:format("COLOR CHOSEN ~p~n", [Color]).
 
-on_message(_Gx, Event) ->
-	print(Event).
-	%gx:set(win, status, ["Last event at " ++ timestamp()]).
+on_browse(_Gx, #gx{data=[Resource, _,_]}) ->
+	browse(Resource), 
+	ok.
+
+%
+on_message(_Gx, Evt = #gx{}) ->
+	Ubf = ubf:encode(Evt),
+	Response = http:request(post, {"http://localhost:8000", 
+		[{"content-type", "application/ubf"}],
+		"application/ubf", Ubf}, [{timeout, 3000}], []),
+	case Response of
+	{ok, {{_, 200, _}, _, Ubf2}} ->	
+		{done, Rec, []} = ubf:decode(Ubf2),
+		io:format("~p: ~p~n", [?MODULE, Rec]);
+	{ok, {Status, _, _}} ->
+		io:format("Response: ~p~n", [Status]);
+	{error, Reason} -> 
+		io:format("Request Error: ~p~n", [Reason])
+	end,
+	ok.
 
 on_click(_Gx, _Event) -> 
-	io:format("[GXRUNNER] Clicked!~n", []).
+	TextEntry = gx:lookup(url),
+	URL = wxTextCtrl:getValue(TextEntry),
+	browse(URL), 
+	ok.
 
 print(Message) ->
 	io:format("~p ~p~n", [self(), Message]).
 
-%%
-%% Application Internals
-%%
-
-%% creates a valid, printable RFC 3339 (ISO 8601) timestamp
-timestamp() ->
-	{{Y, M, D}, {H, M1, S}} = calendar:universal_time(),
-	L = io_lib:format(
-		"~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0B.0Z", 
-		[Y, M, D, H, M1, S]),
-	lists:flatten(L).

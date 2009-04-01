@@ -11,6 +11,8 @@
 -export([do/1]).
 -define(DEFAULT_PORT, 8000).
 
+-include("../include/gx.hrl").
+
 -include_lib("inets/src/httpd.hrl").
 
 %
@@ -27,10 +29,10 @@ start(Port) when is_integer(Port) ->
 		{bind_address, any},
 		{modules, [
 			mod_alias,
-			gx_httpd,
 			mod_dir, 
 			mod_get, 
 			mod_head, 
+			gx_httpd,
 			mod_log
 		]},
 		{directory_index, ["index.html"]},
@@ -40,6 +42,7 @@ start(Port) when is_integer(Port) ->
 		{transfer_log, "logs/access.log"},
 		{mimetypes, [ 
 			{"xml", "application/xml"},
+			{"ubf", "application/ubf"},
 			{"html", "text/html"},
 			{"css", "text/css"}, 
 			{"js", "text/javascript"} 
@@ -67,6 +70,7 @@ start_ssl() ->
 		{transfer_log, "priv/logs/access.log"},
 		{mimetypes, [
 			{"xml", "text/xml"},
+			{"ubf", "application/ubf"},
 			{"html", "text/html"},
 			{"css", "text/css"}, 
 			{"js", "text/javascript"}
@@ -82,7 +86,40 @@ stop() ->
 	end,
 	inets:stop().
 
-
+%
 do(Request) ->
-	io:format("~nREQUEST~n~p~n~n", [Request]),
-	{proceed, Request#mod.data}.
+    case Request#mod.method of
+	"POST" ->
+		case proplists:get_value(status, Request#mod.data) of
+		{_StatusCode, _, _} -> 
+			{proceed, Request#mod.data};
+		%% No status code has been generated!
+		_ ->
+			case proplists:get_value(response, Request#mod.data) of
+			%% No response has been generated!
+			undefined ->
+				Body = process(Request#mod.entity_body), % At last
+				Response = {response, [
+					{code, 200}, 
+					{content_type, "application/ubf"}, 
+					{content_length, integer_to_list(length(Body))}
+					], Body},
+				{proceed,[{response, Response}]};
+			%% A response has been sent! Nothing to do about it!
+			{already_sent, _StatusCode, _Size} ->
+				{proceed, Request#mod.data};
+			%% A response has been generated!
+			{_StatusCode, _Response} ->
+				{proceed, Request#mod.data}
+			end
+		end;
+	_ ->
+	    {proceed, Request#mod.data}
+    end.
+
+%placeholder
+process(UBF) ->
+	case ubf:decode(UBF) of
+	{done, #gx{}, []} -> ubf:encode({gx, {status, ok}});
+	_ -> ubf:encode({gx, {status, nak}})
+	end.

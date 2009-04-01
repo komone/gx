@@ -18,6 +18,10 @@
 -export([get_option/3, get_atom/3, get_boolean/3, 
 	get_integer/3, get_string/3, get_resource/2]).
 
+
+%%
+%%
+
 %%
 %% Component attribute helper functions
 %%
@@ -57,7 +61,7 @@ get_string(Key, Default, Opts) ->
 %% File system resource access
 %%
 
-%% TODO: This is currently locked to "icons" directories and ".gif" format...
+%% TODO: This is currently locked to icons in ".gif" format...
 load_icons() ->
 	case get(gx_icons) of
 	undefined ->
@@ -65,8 +69,10 @@ load_icons() ->
 		IconList = load_icons(IconPaths, ".gif", []),
 		Icons = [{list_to_atom(filename:basename(Icon, ".gif")),
 			wxBitmap:new(Icon, [{type, ?wxBITMAP_TYPE_GIF}])} || Icon <- IconList],
+		FilteredIcons = [Term || Term = {_, Bitmap} <- Icons, 
+			wxBitmap:getWidth(Bitmap) =:= 16, wxBitmap:getHeight(Bitmap) =:= 16],
 		ImageList = wxImageList:new(16, 16), %, [{mask, false}, {initial_count, length(Icons)}]).
-		IconMap = [{GxName, wxImageList:add(ImageList, WxIcon)} || {GxName, WxIcon} <- Icons],
+		IconMap = [{GxName, wxImageList:add(ImageList, WxIcon)} || {GxName, WxIcon} <- FilteredIcons],
 		put(gx_iconmap, IconMap),
 		put(gx_icons, ImageList),
 		%io:format("LOADED ICONS...~n~p~n", [IconList]),
@@ -83,15 +89,31 @@ load_icons([], _, Acc) ->
 	Acc.
 
 %%
+get_resource(src, Opts) -> 
+	{ok, Image} = find_resource(get_option(src, "gx.png", Opts)),
+	Type = image_type(filename:extension(Image)),
+	wxBitmap:new(Image, [{type, Type}]);
+%%
 get_resource(image, Opts) -> 
 	{ok, Image} = find_resource(get_option(image, "gx.png", Opts)),
 	Type = image_type(filename:extension(Image)),
 	wxBitmap:new(Image, [{type, Type}]);
 %%
 get_resource(icon, Opts) -> 
-	{ok, Icon} = find_resource(get_option(icon, "wxe.xpm", Opts)),
+	{ok, Icon} = find_resource(get_option(icon, "file.gif", Opts)),
 	Type = image_type(filename:extension(Icon)),
-	wxIcon:new(Icon, [{type, Type}]).
+	wxIcon:new(Icon, [{type, Type}]);
+
+%%
+get_resource(menuicon, Opts) ->
+	case get_option(icon, undefined, Opts) of
+	undefined -> undefined;
+	Value ->
+		{ok, Icon} = find_resource(Value),
+		Type = image_type(filename:extension(Icon)),
+		wxBitmap:new(Icon, [{type, Type}])
+	end.
+
 
 %% Add more as necessary, not just because you can
 image_type(".xpm") -> ?wxBITMAP_TYPE_XPM;
@@ -110,7 +132,7 @@ image_type(_)      -> ?wxBITMAP_TYPE_INVALID.
 % <gxapp>/<gxrsrcpath>/<myfile>
 set_resource_paths(Module) -> 
 	case get(gx_paths) of 
-	undefined ->
+	undefined -> 
 		application:load(Module),
 		AppPaths =
 		case application:get_application(Module) of
@@ -156,3 +178,12 @@ find_file([H|T]) ->
 %
 find_file([]) ->
 	{error, resource_missing}.
+
+
+%% creates a valid, printable RFC 3339 (ISO 8601) timestamp
+timestamp() ->
+	{{Y, M, D}, {H, M1, S}} = calendar:universal_time(),
+	L = io_lib:format(
+		"~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0B.0Z", 
+		[Y, M, D, H, M1, S]),
+	lists:flatten(L).

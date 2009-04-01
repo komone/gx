@@ -239,6 +239,7 @@ super(wxScrolledWindow)      -> wxPanel;
 super(wxSlider)              -> wxControl;
 super(wxSpinCtrl)            -> wxControl;
 super(wxSplashScreen)        -> wxFrame;
+super(wxStaticBitmap)        -> wxControl;
 super(wxStaticBox)           -> wxControl;
 super(wxStaticLine)          -> wxControl;
 super(wxStaticText)          -> wxControl;

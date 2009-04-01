@@ -9,7 +9,7 @@
 -author('steve@simulacity.com').
 
 -include_lib("xmerl/include/xmerl.hrl").
--export([load/1, generate/1, generate/2]).
+-export([load/1, parse/1, generate/1, generate/2]).
 %
 % TODO: When the DTD/Schema is stable, add validation.
 %
@@ -22,9 +22,13 @@ generate(GxmlFile) ->
 	generate(GxmlFile, TermFile).
 %
 generate(GxmlFile, TermFile) ->
-	{ok, UI} = load(GxmlFile),
-	Terms = [io_lib:format("~p.~n", [Component]) || Component <- UI],
-	ok = file:write_file(TermFile, Terms).
+	case load(GxmlFile) of
+	{ok, UI} ->
+		Terms = [io_lib:format("~p.~n", [Component]) || Component <- UI],
+		ok = file:write_file(TermFile, Terms),
+		{ok, filename:absname(TermFile)};
+	Value -> Value
+	end.
 
 %% Loads a GXML file and returns it as a valid GX Term
 %% NOTE: this returns a list as you may wish to use more than one window, 
@@ -32,14 +36,20 @@ generate(GxmlFile, TermFile) ->
 load(GxmlFile) ->
 	{ok, Bin} = file:read_file(GxmlFile),
 	Markup = binary_to_list(Bin),
+	parse(Markup).
+
+parse(Markup) ->
 	{Xml, []} = xmerl_scan:string(Markup, [{space, normalize}]),
 	case Xml#xmlElement.name of 
 	gxml -> 
 		Terms = convert(Xml#xmlElement.content, []),
 		GxTerms = collapse(Terms, []),
 		{ok, GxTerms};
-	_ -> {error, invalid_file}
+	'glade-interface' -> {not_supported, gtk_glade};
+	application -> {not_supported, wx_glade};
+	_ -> {error, invalid_xml}
 	end.
+
 
 %%
 %% Internal API

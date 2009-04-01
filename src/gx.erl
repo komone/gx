@@ -27,7 +27,7 @@
 	window/2, dialog/2,
 	panel/2, box/2,
 	menubar/2, menu/2, menuitem/2, separator/2,
-	toolbar/2, toolitem/2, button/2, statusbar/2, 
+	toolbar/2, toolbutton/2, button/2, statusbar/2, 
 	tabs/2, editor/2, alert/3, splashscreen/2 % many more...
 ]). 
 
@@ -56,6 +56,7 @@ gen(XmlFile) ->
 start() ->
 	case erlang:system_info(smp_support) of 
 	true -> 
+		gx_util:set_resource_paths(?MODULE),
 		wx:new();
 	false ->
 		{error, no_smp}
@@ -156,8 +157,9 @@ handle_call(names, _From, State) ->
 handle_call(_Req, _From, State) ->
     {reply, {error, badrequest}, State}.
 %%
-handle_cast(_Req, State) ->
-%	io:format("CAST -> ~p~n", [Req]),
+handle_cast(Req, State) ->
+	%% DEBUG - make sure cast messages are not being missed
+	io:format("CAST -> ~p~n", [Req]), 
     {noreply, State}.
 %% WX Event handling
 handle_info(Evt = #wx{}, State) ->
@@ -199,6 +201,7 @@ handle_info(Evt = #wx{}, State) ->
 	end;
 %%
 handle_info(Req, State) ->
+	%% DEBUG - make sure non-wx messages to info are not being missed
 	io:format("INFO -> ~p~n", [Req]),
     {noreply, State}.
 %%
@@ -207,6 +210,7 @@ code_change(_Vsn, State, _Extra) ->
 %%
 terminate(_Reason, State) ->
 	try begin
+		% IMPL ensure wxWidgets releases the wxImageList (avoid a memory leak)
 		case get(gx_icons) of
 		Ref = #wx_ref{} -> wxImageList:destroy(Ref);
 		_ -> ignore
@@ -450,6 +454,12 @@ create_tree({GxType, Opts, Children}) ->
 			wxTopLevelWindow:layout(Window),
 			wxTopLevelWindow:fit(Window),
 			
+			Size = {get_integer(width, Opts), get_integer(height, Opts)}, 
+			case Size of
+			{W, H} when W =:= -1, H =:= -1 -> ignore;
+			{W, H} -> wxTopLevelWindow:setSize(Window, W, H)
+			end,
+			
 			case get_pos(Opts) of
 			center -> wxTopLevelWindow:center(Window);
 			[X, Y] -> wxTopLevelWindow:move(Window, X, Y)
@@ -620,7 +630,7 @@ radio(Parent, Opts) -> radiobutton(Parent, Opts).
 item(Parent = #wx_ref{type=wxMenu}, Opts) ->	
 	menuitem(Parent, Opts);
 item(Parent = #wx_ref{type=wxToolBar}, Opts) ->	
-	toolitem(Parent, Opts);
+	toolbutton(Parent, Opts);
 item(Parent = #wx_ref{type=wxNotebook}, Opts) ->	
 	tabitem(Parent, Opts);
 item(Parent = #wx_ref{type=wxTreeCtrl}, Opts) ->	
@@ -842,7 +852,7 @@ checklist(Parent, Opts) ->
 	create_control(Parent, fun() ->
 		Choices = get_option(items, [], Opts),
 		wxCheckListBox:new(Parent, -1, [{choices, Choices}])
-	end, [], [{onselect, command_listbox_selected}], Opts).
+	end, [], [{onselect, command_list_col_click   }], Opts).
 	% WXE BUG: command_checklistbox_toggled is not defined
 
 %% 
@@ -863,7 +873,14 @@ combobox(Parent, Opts) ->
 		{onselect, command_combobox_selected}, 
 		{onchange, command_text_updated}
 	], Opts). 
-	
+
+%%
+image(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Image = get_resource(src, Opts),
+		wxStaticBitmap:new(Parent, -1, Image, [])
+	end, [], [], Opts). 
+
 %% TODO: Doesn't work as expected yet
 line(Parent, Opts) ->
 	create_control(Parent, fun() ->
@@ -1066,7 +1083,6 @@ menu(Parent, Opts) ->
 menuitem(Parent = #wx_ref{type=wxMenu}, Opts) -> 
 	GxName = get_atom(id, Opts),
 	Label = get_string(label, Opts),
-	Type = get_atom(type, normal, Opts),
 	
 	%% TODO: can ignore multiple (but illegal) callbacks here... is this VALID???
 	Command = case get_callbacks(Opts) of
@@ -1074,35 +1090,58 @@ menuitem(Parent = #wx_ref{type=wxMenu}, Opts) ->
 		set_command(GxName, [{onselect, command_menu_selected}], Callback);
 	[] -> ?wxID_NONE
 	end,
-	Item = case Type of 
-	radio    -> wxMenu:appendRadioItem(Parent, Command, Label);
-	checkbox -> wxMenu:appendCheckItem(Parent,  Command, Label);
-	normal   -> wxMenu:append(Parent, Command, Label);
-	_        -> {error, invalid_menu_item}
+	
+	Type = case get_atom(type, normal, Opts) of 
+	radio     -> ?wxITEM_RADIO;
+	checkbox  -> ?wxITEM_CHECK;
+	separator -> ?wxITEM_SEPARATOR; %% Not really safe...
+	_         -> ?wxITEM_NORMAL
 	end,
+	
+	Item = wxMenuItem:new([{parentMenu, Parent}, {id, Command}, {text, Label}, {kind, Type}]),
+	
+	case get_resource(menuicon, Opts) of 
+	undefined -> ignore;
+	Icon -> wxMenuItem:setBitmap(Item, Icon)
+	end,
+	
 	Checked = get_boolean(checked, false, Opts),
 	wxMenuItem:check(Item, [{check, Checked}]),
+	
 	Enabled = get_boolean(enabled, true, Opts),
 	wxMenuItem:enable(Item, [{enable, Enabled}]),
+	
+	wxMenu:append(Parent, Item),
 	gx:register(GxName, Item, Parent).
 
 %% also for toolbar later...
 separator(Parent = #wx_ref{type=wxMenu}, _Opts) ->
-	wxMenu:appendSeparator(Parent).
+	wxMenu:appendSeparator(Parent);
+separator(Parent = #wx_ref{type=wxToolBar}, _Opts) ->
+	wxToolBar:addSeparator(Parent).
 
 %%
 toolbar(Parent, Opts) ->
-	Name = get_atom(id, Opts),
+	GxName = get_atom(id, Opts),
 	ToolBar = wxFrame:createToolBar(Parent, []),
-	gx:register(Name, ToolBar).
+	gx:register(GxName, ToolBar).
 
 %% Opts = [{label, String} | {icon, Path}]
-toolitem(_Parent = #wx_ref{type=wxToolBar}, Opts) ->
-	_Label = get_string(label, "", Opts),
-	_Icon = get_resource(icon, Opts).
+toolbutton(Parent = #wx_ref{type=wxToolBar}, Opts) ->
+	GxName = get_atom(id, Opts),
+	Label = get_string(label, "", Opts),
+	
+	Command = case get_callbacks(Opts) of
+	[Callback|_] -> 
+		set_command(GxName, [{onselect, command_menu_selected}], Callback);
+	[] -> ?wxID_NONE
+	end,
+	
+	Icon = get_resource(menuicon, Opts),
+	ToolButton = wxToolBar:addTool(Parent, Command, Label, Icon),
 %% NOTE: doesn't work - need to understand more about wx realize cpp call
-%	wxToolBar:addTool(Parent, -1, Label, Icon),
-%	wxToolBar:realize(Parent).
+	wxToolBar:realize(Parent),
+	gx:register(GxName, ToolButton).
  
 %% Opts = [{text, String}]
 statusbar(Parent, Opts) ->

@@ -1,11 +1,16 @@
 <?xml version="1.0"?>
 <gxml>
-	<frame>
+	<window id="minimal" title="This UI came from a web server!" pos="center">
 		<menubar>
 			<menu label="File">
 				<item label="Quit" onselect="on_close"/>
 			</menu>
 		</menubar>
-		<panel width="400" height="250"/>
-	</frame>
+		<statusbar>Hello, Sandy!</statusbar>
+		<panel width="600" height="300">
+		<panel fill="true">
+			<button align="center" onclick="on_message"/>
+			</panel>
+		</panel>
+	</window>
 </gxml>
