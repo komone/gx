@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<gxml>
+<window title="GX Tutorial">
+	<panel>
+		<grid rows="50" cols="10" />
+	</panel>
+</window>
+</gxml>

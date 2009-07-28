@@ -90,7 +90,12 @@ read(GxName, Property) ->
 read(GxName, Property, Opts) when is_atom(GxName), is_tuple(Opts) ->
 	read(GxName, Property, [Opts]);
 read(GxName, Property, Opts) when is_atom(Property), is_list(Opts) ->
-	gen_server:call(?MODULE, {read, GxName, Property, Opts}).
+	case whereis(?MODULE) of
+	Pid when Pid =:= self() -> 
+		gx_map:get(GxName, Property, Opts);
+	_ -> 
+		gen_server:call(?MODULE, {read, GxName, Property, Opts})
+	end.
 
 %% TODO: Extended use case example would be...
 %% gx:config(listbox, [{selected, [{item, 0}]}, {style, blah}]).
@@ -98,18 +103,33 @@ read(GxName, Property, Opts) when is_atom(Property), is_list(Opts) ->
 config(GxName, Properties) when is_tuple(Properties) ->
 	config(GxName, [Properties]);
 config(GxName, Properties) when is_list(Properties) ->
-	gen_server:call(?MODULE, {config, GxName, Properties}).
+	case whereis(?MODULE) of
+	Pid when Pid =:= self() -> 
+		[gx_map:set(GxName, Property, Opts) || {Property, Opts} <- Properties];
+	_ -> 
+		gen_server:call(?MODULE, {config, GxName, Properties})
+	end.
 
 %
 registry() ->
 	registry(?MODULE).
 registry(Name) -> 
-	gen_server:call(Name, registry).
+	case whereis(Name) of
+	Pid when Pid =:= self() -> get();
+	_ -> gen_server:call(Name, registry)
+	end.
 %	 
 names() -> 
 	names(?MODULE).
 names(Name) ->
-	gen_server:call(Name, names).
+	case whereis(Name) of
+	Pid when Pid =:= self() -> 
+		SystemNames = [wx_env, 
+		gx, gx_paths, gx_icons, gx_iconmap, gx_command_index, 
+		'$ancestors', '$initial_call'],
+		[X || {X, _} <- get(), is_atom(X), lists:member(X, SystemNames) =:= false];
+	_ -> gen_server:call(Name, names)
+	end.
 	
 %%
 %% Callbacks for gen_server
@@ -171,6 +191,10 @@ handle_info(Evt = #wx{}, State) ->
 			Evt#wx.userData;
 		#wxClose{} ->
 			{gx, exit};
+		#wxCalendar{} ->
+			Evt#wx.userData;
+		#wxSpin{} ->
+			Evt#wx.userData;		
 		#wxCommand{} when is_tuple(Evt#wx.userData) ->
 			Evt#wx.userData;
 		#wxCommand{} -> % menu events
@@ -225,6 +249,10 @@ terminate(_Reason, State) ->
 	end,
     ok.
 
+%%
+%% Gen server support functions
+%%
+
 %% if we have a term definition, load the UI...
 init_component(Module, [GxTerm|T]) when is_tuple(GxTerm) ->
 	case T of 
@@ -251,12 +279,11 @@ init_component(Module, File) when is_list(File) ->
 validate_handler(_Module, Handler = {gx, _}) ->
 	Handler;
 validate_handler(Module, {GxName, GxEvent, GxHandler}) ->
-	Exports = Module:module_info(exports),
-	case lists:member({GxHandler, 2}, Exports) of 
+	case erlang:function_exported(Module, GxHandler, 2) of 
 	true -> 
 		{GxName, GxEvent, GxHandler};
 	false -> 
-		case lists:member({on_message, 2}, Exports) of
+		case erlang:function_exported(Module, on_message, 2) of
 		true -> {GxName, GxEvent, on_message};
 		false -> undefined
 		end
@@ -272,7 +299,10 @@ translate_event(Evt = #wx{}, GxName, GxEvent, _GxCallback) ->
 	WxData = 
 		case Evt#wx.event of
 		Cmd = #wxCommand{} -> [ Cmd#wxCommand.cmdString, 
-			Cmd#wxCommand.commandInt, Cmd#wxCommand.extraLong];
+			Cmd#wxCommand.commandInt, Cmd#wxCommand.extraLong ];
+		Cmd = #wxSpin{} -> [ [], Cmd#wxSpin.commandInt, 0 ];
+		%% BUG: wxCalendarEvent is documented but apparently missing!
+		Cmd = #wxCalendar{} -> [wxCalendarCtrl:getDate(WxRef), 0];
 		_ -> []
 		end,
 		
@@ -288,11 +318,10 @@ do_init_handler(Module, Parent, {_, Options, _}) ->
 	case get_atom(onload, undefined, Options) of
 	undefined -> ok;
 	Function -> 
-		Exports = Module:module_info(exports),
-		case lists:member({Function, 2}, Exports) of 
+		case erlang:function_exported(Module, Function, 2) of 
 		true ->
 			GxName = get_atom(id, Options),
-			Module:Function(Parent, {gx, GxName, Function, 0, [#wx{}]});
+			Module:Function(Parent, #gx{id=GxName, event=Function, wx=#wx{}});
 		false -> {error, no_callback_handler}
 		end
 	end.
@@ -317,6 +346,7 @@ get_string(Key, Opts)            -> gx_util:get_string(Key, "", Opts).
 get_string(Key, Default, Opts)   -> gx_util:get_string(Key, Default, Opts).
 %% BUG:should be -> get_resource(Type, Key, Opts)
 get_resource(Key, Opts)          -> gx_util:get_resource(Key, Opts).
+
 get_option(Key, Opts)            -> gx_util:get_option(Key, undefined, Opts).
 get_option(color, Default, Opts) -> gx_map:color(get_atom(color, Default, Opts));
 get_option(Key, Default, Opts)   -> gx_util:get_option(Key, Default, Opts).
@@ -356,6 +386,7 @@ get_callbacks(Opts) ->
 register(GxName, Component) ->
 	case GxName of
 	undefined -> ignore;
+%	_ -> wxWindow:setName(Component, atom_to_list(GxName))
 	_ -> undefined = put(GxName, Component) % enforce "write once"
 	end,
 	Component.
@@ -386,6 +417,7 @@ destroy(Component, GxName) when is_tuple(Component), is_atom(GxName) ->
 		{destroyed, Component}
 	]),
 	%% TDDO: Assumes the parent class is wxWindow...
+	%% TODO: should this be wxWindow:close() ?
 	wxWindow:destroy(Component).
 
 %% Create a GX command and the user-defined handler
@@ -510,7 +542,7 @@ create_tree(Parent, [{Type, Opts, Children} | Rest]) ->
 	false -> 
 		ignore 
 	end,
-	%% end hacks
+	%% end hack
 	
 	create_tree(Parent, Rest);
 %% leaf
@@ -525,78 +557,60 @@ create_tree(Parent, []) ->
 %%
 set_options(Parent, Component, Opts) ->
 	SizerFlags = wxSizerFlags:new(),
-	%% IMPORTANT TODO: The following unbelievable hack was forced onto me either
-	%% by wxWidgets or by an alignment bug in wxErlang... not yet sure which!
-	try begin
-		% relies on the fact that Panels will return their sizer ref
-		PS = get(Parent),  
-		?wxHORIZONTAL = wxBoxSizer:getOrientation(PS),
-		% io:format("!HORIZONTAL LAYOUT!~n", []),
-		%% BUG: there's a bug here somewhere and it's in WXE I think...
-		Alignment = 
-			case get_atom(align, left, Opts) of 
-			left   -> ?wxALIGN_TOP;
-			center -> ?wxALIGN_CENTER_VERTICAL;
-			right  -> ?wxALIGN_BOTTOM;
-			_      -> ?wxALIGN_TOP
-			end,
-		wxSizerFlags:align(SizerFlags, Alignment),
-		
-		%% Fill and Border are also orientation dependent
-		Fill = get_atom(fill, false, Opts),
-			case Fill of % for now fill="true" means fill="both"
-			width -> 
-				wxSizerFlags:proportion(SizerFlags, 1);
-			height -> 
-				wxSizerFlags:expand(SizerFlags);
-			both ->
-				wxSizerFlags:expand(SizerFlags),
-				wxSizerFlags:proportion(SizerFlags, 1); 
-			true -> 
-				wxSizerFlags:expand(SizerFlags),
-				wxSizerFlags:proportion(SizerFlags, 1); 
-			false -> ignore
-			end,
-		
-		% TODO: support border="10, 10, 0, 0" etc
-		Border = get_integer(border, 0, Opts),
-		wxSizerFlags:border(SizerFlags, ?wxALL, Border)		
-	end catch
-	_:_ ->
-		% do normal alignment
-		Alignment2 = 
-			case get_atom(align, left, Opts) of
-			left   -> ?wxALIGN_LEFT;
-			center -> ?wxALIGN_CENTER_HORIZONTAL bor ?wxALIGN_CENTER_VERTICAL;
-			right  -> ?wxALIGN_RIGHT;
-			_      -> ?wxALIGN_LEFT
-			end,
-		wxSizerFlags:align(SizerFlags, Alignment2),
-		
-		Fill2 = get_atom(fill, false, Opts),
-			case Fill2 of % for now fill="true" means fill="both"
-			width -> 
-				wxSizerFlags:expand(SizerFlags);
-			height -> 
-				wxSizerFlags:proportion(SizerFlags, 1);
-			both ->
-				wxSizerFlags:expand(SizerFlags),
-				wxSizerFlags:proportion(SizerFlags, 1); 
-			true -> 
-				wxSizerFlags:expand(SizerFlags),
-				wxSizerFlags:proportion(SizerFlags, 1); 
-			false -> ignore
-			end,
-			
-		% TODO: support border="10, 10, 0, 0" etc
-		Border1 = get_integer(border, 0, Opts),
-		wxSizerFlags:border(SizerFlags, ?wxALL, Border1)
-	end,
+	
+	%% BUG: there's a bug here somewhere and it's in WXE I think...
+	Flip = 
+		try begin
+			ParentSizer = wxWindow:getSizer(Parent),
+			BoxSizer = wx:typeCast(ParentSizer, wxBoxSizer),
+			case wxBoxSizer:getOrientation(BoxSizer) of
+			?wxHORIZONTAL -> true;
+			_ -> false
+			end
+		end catch
+			error:_ -> false
+		end,
+	
+	Alignment = 
+		case get_atom(align, left, Opts) of 
+		left when Flip -> ?wxALIGN_TOP;
+		left -> ?wxALIGN_LEFT;
+		center -> ?wxALIGN_CENTER;
+		right when Flip -> ?wxALIGN_BOTTOM;
+		right  -> ?wxALIGN_RIGHT;
+		_ when Flip -> ?wxALIGN_TOP;
+		_  -> ?wxALIGN_LEFT
+		end,
+	wxSizerFlags:align(SizerFlags, Alignment),
+	
+	%% Fill and Border are also orientation dependent
+	Fill = get_atom(fill, false, Opts),
+		case Fill of % for now fill="true" means fill="both"
+		width when Flip -> 
+			wxSizerFlags:proportion(SizerFlags, 1);
+		width -> 
+			wxSizerFlags:expand(SizerFlags);
+		height when Flip -> 
+			wxSizerFlags:expand(SizerFlags);
+		height -> 
+			wxSizerFlags:proportion(SizerFlags, 1);
+		both ->
+			wxSizerFlags:expand(SizerFlags),
+			wxSizerFlags:proportion(SizerFlags, 1); 
+		true -> 
+			wxSizerFlags:expand(SizerFlags),
+			wxSizerFlags:proportion(SizerFlags, 1); 
+		false -> ignore
+		end,
+	
+	% TODO: support border="10, 10, 0, 0" etc
+	Border = get_integer(border, 0, Opts),
+	wxSizerFlags:border(SizerFlags, ?wxALL, Border),
 		
 	case wxWindow:isTopLevel(Parent) of 
 	true ->
 		case wxWindow:getSizer(Component) of
-		#wx_ref{ref=0} -> ok; 
+		#wx_ref{ref=0} -> ok;
 		Sizer -> wxSizer:setSizeHints(Sizer, Parent)
 		end;
 	false ->
@@ -625,6 +639,10 @@ frame(Parent, Opts) -> window(Parent, Opts).
 label(Parent, Opts) -> text(Parent, Opts).
 %
 radio(Parent, Opts) -> radiobutton(Parent, Opts).
+%
+split(Parent, Opts) -> splitpane(Parent, Opts).
+%
+tabs(Parent, Opts) -> tabbedpane(Parent, Opts).
 
 %% Allow shorthand tag of 'item' inside menus, toolbars, etc
 item(Parent = #wx_ref{type=wxMenu}, Opts) ->	
@@ -643,7 +661,7 @@ item(Parent = #wx_ref{type=wxTreeItemId}, Opts) ->
 %%
 
 %% Opts = [{title, String}|{width, Integer}|{height, Integer}|{icon, Path}] etc
-window(Parent = #wx_ref{type=wx}, Opts) ->
+window(Parent = #wx_ref{}, Opts) ->
 	GxName = get_atom(id, Opts),
 	Title = get_string(title, "Untitled", Opts),
 	Frame = wxFrame:new(Parent, -1, Title),
@@ -676,7 +694,7 @@ window(Parent = #wx_ref{type=wx}, Opts) ->
 
 %% TODO: Not fully implemented
 %% Opts = [{title, String}|{width, Integer}|{height, Integer}|{icon, Path}]
-dialog(Parent = #wx_ref{type=wx}, Opts) ->
+dialog(Parent = #wx_ref{}, Opts) ->
 	GxName = get_atom(id, Opts),
 	Title = get_string(title, "Untitled", Opts),
 	X = get_integer(width, Opts),
@@ -738,7 +756,7 @@ panel(Parent, Opts) ->
 	wxPanel:setSizer(Panel, Sizer),
 	
 	ok = set_options(Parent, Panel, Opts),	
-	gx:register(GxName, Panel, Sizer).
+	gx:register(GxName, Panel, Parent).
 
 %% MAYBE TODO: move this into panel?
 boxpanel(Parent, Opts) ->
@@ -763,7 +781,38 @@ boxpanel(Parent, Opts) ->
 	gx:register(GxName, Panel).
 
 %%
-tabs(Parent, Opts) ->
+splitpane(Parent, Opts) ->
+	GxName = get_atom(id, Opts),
+	
+	Splitpane = wxSplitterWindow:new(Parent),
+	Panel = wxPanel:new(Splitpane), % "holding" panel
+	wxPanel:setOwnBackgroundColour(Panel, gx_map:color(blue)),
+
+	Layout = get_atom(layout, vertical, Opts),
+	case Layout of
+	vertical -> 
+		wxSplitterWindow:splitVertically(Splitpane, Panel, Panel);
+	horizontal ->
+		wxSplitterWindow:splitHorizontally(Splitpane, Panel, Panel);
+	_ -> 
+		undefined
+	end,
+	Gravity = get_integer(gravity, 50, Opts) / 10,
+	wxSplitterWindow:setSashGravity(Splitpane, Gravity),
+	
+	X = get_integer(width, Opts),
+	Y = get_integer(height, Opts),
+	
+	Sizer = wxBoxSizer:new(?wxVERTICAL),
+	wxSizer:setMinSize(Sizer, {X, Y}),
+	
+	wxSplitterWindow:setSizer(Splitpane, Sizer),
+	
+	ok = set_options(Parent, Splitpane, Opts),	
+	gx:register(GxName, Splitpane, Sizer).
+
+%%
+tabbedpane(Parent, Opts) ->
 	GxName = get_atom(id, Opts),
 	
 	Notebook = wxNotebook:new(Parent, -1, []),
@@ -799,21 +848,36 @@ tabitem(Parent = #wx_ref{type=wxNotebook}, Opts) ->
 	ok = set_options(Parent, Panel, Opts),
 	gx:register(GxName, Panel).
 
-%% TODO: Add features! Opts = [{label, String}]
-editor(Parent, Opts) ->
-	create_control(Parent, fun() ->
-		_Value = get_option(value, "Untitled", Opts),
-		wxStyledTextCtrl:new(Parent)
-	end, [], [], Opts). 
-
+% a grid is not a control.... ??!???!
+grid(Parent, Opts) ->
+	GxName = get_atom(id, Opts),
+	Rows = get_integer(rows, -1, Opts),
+	Cols = get_integer(cols, -1, Opts),
+	
+	Grid = wxGrid:new(Parent, -1),
+	
+	wxGrid:createGrid(Grid, Rows, Cols),
+	
+	Sizer = wxBoxSizer:new(?wxVERTICAL),
+	
+	X = get_integer(width, Opts),
+	Y = get_integer(height, Opts),
+	
+	wxSizer:setMinSize(Sizer, {X, Y}),
+	wxGrid:setSizer(Grid, Sizer),
+	
+	ok = set_options(Parent, Grid, Opts),	
+	gx:register(GxName, Grid, Sizer).
 
 %%
 %% Basic Controls
 %%
 
+%% TODO: Validators for all components
+
 %% Generic control
 %% TODO: cope with Style flags 
-create_control(Parent = #wx_ref{}, Create, _StyleFlags, Events, Opts) ->	
+create_control(Parent = #wx_ref{}, Create, _StyleFlags, Events, Opts) ->
 	%% NOTE: At the moment it looks as though a higher order function isn't 
 	%% necessary here since Create/0 is always called first...
 	%% HOWEVER this will change when StyleFlags are implemented.
@@ -837,14 +901,25 @@ create_control(Parent = #wx_ref{}, Create, _StyleFlags, Events, Opts) ->
 button(Parent, Opts) ->
 	create_control(Parent, fun() ->
 		Label = get_string(label, "OK", Opts),
-		wxButton:new(Parent, -1, [{label, Label}])
+		case proplists:is_defined(icon, Opts) of
+		true ->
+			Icon = get_resource(icon, Opts),
+			wxBitmapButton:new(Parent, -1, Icon, [{label, Label}]);
+		false ->
+			wxButton:new(Parent, -1, [{label, Label}])
+		end
 	end, [], [{onclick, command_button_clicked}], Opts). 
 
-%%
+%% TODO: 3-state checkboxes not yet supported
 checkbox(Parent, Opts) ->
 	create_control(Parent, fun() ->
+		Justify =
+			case get_atom(justify, left, Opts) of
+			right -> ?wxALIGN_RIGHT;
+			_ -> 0
+			end,
 		Label = get_string(label, "(undefined)", Opts),
-		wxCheckBox:new(Parent, -1, Label, [])
+		wxCheckBox:new(Parent, -1, Label, [{style, ?wxCHK_2STATE bor Justify}])
 	end, [], [{onselect, command_checkbox_clicked}], Opts). 
 	
 %%
@@ -852,8 +927,7 @@ checklist(Parent, Opts) ->
 	create_control(Parent, fun() ->
 		Choices = get_option(items, [], Opts),
 		wxCheckListBox:new(Parent, -1, [{choices, Choices}])
-	end, [], [{onselect, command_list_col_click   }], Opts).
-	% WXE BUG: command_checklistbox_toggled is not defined
+	end, [], [{onselect, command_checklistbox_toggled}], Opts).
 
 %% 
 choice(Parent, Opts) ->
@@ -870,8 +944,9 @@ combobox(Parent, Opts) ->
 		Choices = get_option(items, [], Opts),
 		wxComboBox:new(Parent, -1, [{value, Value}, {choices, Choices}])
 	end, [], [ 
+		{onchange, command_text_updated},
 		{onselect, command_combobox_selected}, 
-		{onchange, command_text_updated}
+		{onselect, command_text_enter}
 	], Opts). 
 
 %%
@@ -900,8 +975,26 @@ list(Parent, Opts) ->
 	create_control(Parent, fun() ->
 		Choices = get_option(items, [], Opts),
 		wxListBox:new(Parent, -1, [{choices, Choices}])
-	end, [], [{onselect, command_listbox_selected}], Opts).
+	end, [], [
+		{ondblclick, command_listbox_doubleclicked},
+		{onselect, command_listbox_selected}
+	], Opts).
 	
+%%
+progress(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		Range = get_integer(range, -1, Opts),
+		Value = get_integer(value, 0, Opts),
+		
+		Gauge = wxGauge:new(Parent, -1, Range),
+		
+		case Range of 
+		X when X < 0 -> wxGauge:pulse(Gauge);
+		_ -> wxGauge:setValue(Gauge, Value)
+		end,
+		Gauge
+	end, [], [], Opts).
+
 %%
 radiobox(Parent, Opts) ->
 	create_control(Parent, fun() ->
@@ -951,19 +1044,30 @@ spinner(Parent, Opts) ->
 		end,
 		wxSpinCtrl:new(Parent, [{style, Style}, 
 			{min, Start}, {max, End}, {initial, Value}, {value, Text}])
-	end, [], [{onchange, command_text_updated}], Opts). 
-	% WXE BUG: 'evt_spinctrl' is not defined
+	end, [], [{onchange, command_spinctrl_updated}], Opts). 
 
 % or label?
 text(Parent, Opts) ->
 	create_control(Parent, fun() ->
+		Justify = 
+			case get_atom(justify, none, Opts) of
+			center -> ?wxALIGN_CENTER;
+			left   -> ?wxALIGN_LEFT;
+			right  -> ?wxALIGN_RIGHT;
+			_      -> ?wxALIGN_LEFT
+			end,
+		Fixed =
+			case get_boolean(fixed, false, Opts) of
+			true  -> ?wxST_NO_AUTORESIZE;
+			false -> 0
+			end,
 		Label = 
 			case get_string(value, Opts) of 
 			[] -> get_string(label, Opts);
 			Value -> Value
 			end,
 		Wrap = get_integer(wrap, -1, Opts),
-		StaticText = wxStaticText:new(Parent, -1, Label, []),
+		StaticText = wxStaticText:new(Parent, -1, Label, [{style, Justify bor Fixed}]),
 		wxStaticText:wrap(StaticText, Wrap),
 		StaticText
 	end, [], [], Opts). 
@@ -998,7 +1102,6 @@ textentry(Parent, Opts) ->
 		{onsubmit, command_text_enter} %% ...hmmm
 	], Opts). 
 
-
 %%
 togglebutton(Parent, Opts) -> 
 	create_control(Parent, fun() ->
@@ -1009,6 +1112,26 @@ togglebutton(Parent, Opts) ->
 %%
 %% Composite Controls
 %%
+
+%%
+calendar(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		wxCalendarCtrl:new(Parent, -1, [])
+	end, [], [
+	 {onselect, calendar_sel_changed}, 
+	 {onchange, calendar_day_changed}, 
+	 {onchange, calendar_month_changed}, 
+	 {onchange, calendar_year_changed}, 
+	 {ondblclick, calendar_doubleclicked},
+	 {onclick, calendar_weekday_clicked}
+	], Opts). 
+
+%% TODO: Add features! Opts = [{label, String}]
+editor(Parent, Opts) ->
+	create_control(Parent, fun() ->
+		_Value = get_option(value, "Untitled", Opts),
+		wxStyledTextCtrl:new(Parent)
+	end, [], [], Opts). 
 
 %%
 tree(Parent, Opts) ->

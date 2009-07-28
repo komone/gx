@@ -13,13 +13,15 @@
 -export([encode/1, decode/1]).
 
 
-encode(Term = #gx{}) ->
+encode(Term) ->
 	ubf:encode(Term).
 
 decode(UBF) ->
-	{done, Term, []} = ubf:decode(UBF),
-	Term.
+	case ubf:decode(UBF) of
+	{done, Term, []} -> Term;
+	Error -> Error
+	end.
 
-%placeholder
-%parse_term(Term) -> Term.
-	
+% placeholder
+% parse_term(Term) -> Term.
+	 

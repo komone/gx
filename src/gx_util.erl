@@ -18,7 +18,6 @@
 -export([get_option/3, get_atom/3, get_boolean/3, 
 	get_integer/3, get_string/3, get_resource/2]).
 
-
 %%
 %%
 
@@ -135,26 +134,27 @@ set_resource_paths(Module) ->
 	undefined -> 
 		application:load(Module),
 		AppPaths =
-		case application:get_application(Module) of
-		{ok, App} ->
-			LibPath = code:lib_dir(App),
-			case application:get_env(Module, resources) of 
-			{ok, Paths} -> 
-				[LibPath | [filename:join([LibPath, P]) || P <- Paths]];
-			undefined -> 
-				[LibPath]
-			end;
-		undefined -> []
-		end,
-		
+			case application:get_application(Module) of
+			{ok, App} ->
+				LibPath = code:lib_dir(App),
+				case application:get_env(Module, resources) of 
+				{ok, Paths} -> 
+					[LibPath | [filename:join([LibPath, P]) || P <- Paths]];
+				undefined -> 
+					[LibPath]
+				end;
+			undefined -> []
+			end,
+			
 		application:load(?GX_APPLICATION),
 		GxPaths = 
-		case application:get_env(?GX_APPLICATION, resources) of
-		{ok, Paths2} ->
-			GxLibPath = code:lib_dir(?GX_APPLICATION),
-			[GxLibPath | [filename:join([GxLibPath, P]) || P <- Paths2]];
-		undefined -> []
-		end,
+			case application:get_env(?GX_APPLICATION, resources) of
+			{ok, Paths2} ->
+				GxLibPath = code:lib_dir(?GX_APPLICATION),
+				[GxLibPath | [filename:join([GxLibPath, P]) || P <- Paths2]];
+			undefined -> []
+			end,
+			
 		{ok, WorkDir} = file:get_cwd(),
 		%% TODO: This is ugly as hell but it works...
 		AllPaths = lists:append([[WorkDir], AppPaths, GxPaths]),

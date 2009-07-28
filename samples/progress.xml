@@ -3,8 +3,8 @@
 	<window id="win" title="Example - List" onload="init" onunload="on_close">
 		<statusbar>list(Parent, Opts)</statusbar>
 		<panel>
-			<progress range="100" value="25"/>
-			<button align="center" border="5" onclick="clicked"/>
+			<progress fill="width" border="10"/>
+			<button align="center" border="5" onclick="on_message"/>
 		</panel>
 	</window>
 </gxml>

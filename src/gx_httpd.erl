@@ -43,6 +43,7 @@ start(Port) when is_integer(Port) ->
 		{mimetypes, [ 
 			{"xml", "application/xml"},
 			{"ubf", "application/ubf"},
+			{"json", "application/json"},
 			{"html", "text/html"},
 			{"css", "text/css"}, 
 			{"js", "text/javascript"} 
@@ -76,7 +77,7 @@ start_ssl() ->
 			{"js", "text/javascript"}
 		]}
 	]),
-	register(gx_httpd, Pid),
+%	register(gx_httpd, Pid),
 	Pid.
 	
 stop() ->

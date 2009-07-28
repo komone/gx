@@ -35,6 +35,23 @@ browse(URL) ->
 	{error, Reason} -> 
 		io:format("Request Error: ~p~n", [Reason])
 	end.
+	
+on_browse(Evt) ->
+	Ubf = gx_ubf:encode(Evt),
+	Response = http:request(post, {"http://localhost:8000", 
+		[{"content-type", "application/ubf"}],
+		"application/ubf", Ubf}, [{timeout, 3000}], []),
+	case Response of
+	{ok, {{_, 200, _}, _, Ubf2}} ->	
+		Rec = gx_ubf:decode(Ubf2),
+		io:format("~p: ~p~n", [?MODULE, Rec]);
+	{ok, {Status, _, _}} ->
+		io:format("Response: ~p~n", [Status]);
+	{error, Reason} -> 
+		io:format("Request Error: ~p~n", [Reason])
+	end,
+	ok.
+
 
 %%
 %% Callbacks
@@ -79,21 +96,8 @@ on_browse(_Gx, #gx{data=[Resource, _,_]}) ->
 	ok.
 
 %
-on_message(_Gx, Evt = #gx{}) ->
-	Ubf = gx_ubf:encode(Evt),
-	Response = http:request(post, {"http://localhost:8000", 
-		[{"content-type", "application/ubf"}],
-		"application/ubf", Ubf}, [{timeout, 3000}], []),
-	case Response of
-	{ok, {{_, 200, _}, _, Ubf2}} ->	
-		Rec = gx_ubf:decode(Ubf2),
-		io:format("~p: ~p~n", [?MODULE, Rec]);
-	{ok, {Status, _, _}} ->
-		io:format("Response: ~p~n", [Status]);
-	{error, Reason} -> 
-		io:format("Request Error: ~p~n", [Reason])
-	end,
-	ok.
+on_message(_Gx, Evt) ->
+	print(Evt).
 
 on_click(_Gx, _Event) -> 
 	TextEntry = gx:lookup(url),

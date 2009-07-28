@@ -15,43 +15,41 @@
 -compile(export_all).
 -export([get/3, set/3, color/1, color/2, color/3]).
 
-%%% DECOMMISSIONED!
-process(WxRef = #wx_ref{type=Module}, FType, {Key, Value}) ->
-	case gx_map:FType(Module) of
-	undefined -> {no_gx_map, {FType, Module, Key}};
-	FMap ->
-		[{Function, ArgDef}] = [Definition || {FKey, Definition} <- FMap, FKey =:= Key],
-		case ArgDef of
-		undefined -> 
-			{no_gx_map, {FType, Module, Key}};
-		_ ->
-			Args = map_args(ArgDef, [{wx_ref, WxRef}, {value, Value}]),
-			io:format("CALL ~p:~p(~p)~n", [Module, Function, Args]),
-			erlang:apply(Module, Function, Args)
-		end
-	end.
-%%% DECOMMISSIONED!
-map_args(ArgDef, Opts) ->
-	Pred = fun(Arg, Options) -> 
-		[Result] = [Value || {Key, Value} <- Options, Key =:= Arg],
-		Result
-	end,
-	[Pred(Arg, Opts) || Arg <- ArgDef].
-
 %
 get(WxRef = #wx_ref{type=WxType}, Property, Options) ->
 	gx_map:get(WxType, Property, Options, WxRef). 
+%
 set(WxRef = #wx_ref{type=WxType}, Property, Options) ->
 	gx_map:set(WxType, Property, Options, WxRef). 
 
 
 % a first go at getter/setters for properties, rather than "undefined" try returning ancestor...?
 %get(wxStaticLine, Key) -> map(Key, wxControl, [{vertical, {isVertical, 1}}, {default, {getDefaultSize, 0}}]);
-get(wxFrame, size, [], WxRef) -> wxFrame:getSize(WxRef);
-get(wxFrame, title, [], WxRef) -> wxFrame:getTitle(WxRef);
-get(wxFrame, Function, Opts, WxRef) -> get(wxTopLevelWindow, Function, Opts, WxRef);
+get(wxBoxSizer, layout, [], WxRef) -> 
+	case wxBoxSizer:getOrientation(WxRef) of
+	?wxHORIZONTAL -> horizontal;
+	?wxVERTICAL -> vertical
+	end;
+	
+get(wxButton, default_size, [], _) -> wxButton:getDefaultSize();
+get(wxButton, image, [], _) -> undefined;
+get(wxBitmapButton, image, [], WxRef) -> wxBitmapButton:getBitmapLabel(WxRef);
+
+get(wxCheckbox, enabled, [], WxRef) -> wxCheckbox:getValue(WxRef);
+get(wxFrame, origin, [], WxRef) -> wxFrame:getClientAreaOrigin(WxRef);
+
 get(wxStaticText, label, [], WxRef) -> wxStaticText:getLabel(WxRef);
-get(wxStaticText, Function, Opts, WxRef) -> get(wxControl, Function, Opts, WxRef);
+% get(wxStaticText, Function, Opts, WxRef) -> get(wxControl, Function, Opts, WxRef);
+
+get(wxTopLevelWindow, fullscreen, [], WxRef) -> wxTopLevelWindow:isFullScreen(WxRef);
+get(wxTopLevelWindow, iconized, [], WxRef) -> wxTopLevelWindow:isIconized(WxRef);
+get(wxTopLevelWindow, maximized, [], WxRef) -> wxTopLevelWindow:isMaximized(WxRef);
+get(wxTopLevelWindow, title, [], WxRef) -> wxTopLevelWindow:getTitle(WxRef);
+
+get(wxWindow, label, [], WxRef) -> wxWindow:getLabel(WxRef);
+get(wxWindow, size, [], WxRef) -> wxWindow:getSize(WxRef);
+get(wxWindow, pos, [], WxRef) -> wxWindow:getPosition(WxRef);
+
 %% TODO: many more
 get(WxType, Property, Options, WxRef) ->
 	case super(WxType) of
@@ -60,13 +58,20 @@ get(WxType, Property, Options, WxRef) ->
 	end.
 
 % a first go at getter/setters for properties, rather than "undefined" try returning ancestor...?
-set(wxFrame, pos, center, WxRef) -> wxFrame:centerOnScreen(WxRef);
-set(wxFrame, show, Bool, WxRef) when is_boolean(Bool) -> wxFrame:show(WxRef, [{show, Bool}]);
-set(wxFrame, show, [], WxRef) -> wxFrame:show(WxRef);
-set(wxFrame, title, String, WxRef) when is_list(String) -> wxFrame:setTitle(WxRef, String);
-set(wxFrame, Function, Opts, WxRef) -> set(wxWindow, Function, Opts, WxRef);
-set(wxStaticText, label, [], WxRef) -> wxStaticText:getLabel(WxRef);
-set(wxStaticText, Function, Opts, WxRef) -> set(wxControl, Function, Opts, WxRef);
+set(wxButton, default, [], WxRef) -> wxButton:setDefault(WxRef);
+set(wxCheckbox, enabled, Bool, WxRef) when is_boolean(Bool) -> wxCheckbox:setValue(WxRef, Bool);
+
+set(wxTopLevelWindow, title, String, WxRef) when is_list(String) -> wxTopLevelWindow:setTitle(WxRef, String);
+
+set(wxFrame, status, String, WxRef) -> wxFrame:setStatusText(WxRef, String);
+
+set(wxStaticText, wrap, [{width, Integer}], WxRef) -> wxStaticText:wrap(WxRef, Integer);
+
+set(wxWindow, label, String, WxRef) -> wxWindow:setLabel(WxRef, String);
+set(wxWindow, pos, center, WxRef) -> wxWindow:centerOnScreen(WxRef);
+set(wxWindow, show, Bool, WxRef) when is_boolean(Bool) -> wxWindow:show(WxRef, [{show, Bool}]);
+set(wxWindow, show, [], WxRef) -> wxWindow:show(WxRef);
+
 %% TODO: many more
 set(WxType, Property, Options, WxRef) ->
 	case super(WxType) of
@@ -97,6 +102,7 @@ wx_type(text) -> wxStaticText;
 wx_type(line) -> wxStaticLine;
 wx_type(entry) -> wxTextCtrl;
 wx_type(editor) -> wxStyledTextCtrl;
+wx_type(calendar) -> wxCalendarCtrl;
 wx_type(_) -> undefined.
 
 gx_type(wxButton) -> button;
@@ -118,6 +124,7 @@ gx_type(wxStaticText) -> text;
 gx_type(wxStaticLine) -> line;
 gx_type(wxTextCtrl) -> entry;
 gx_type(wxStyledTextCtrl) -> editor;
+gx_type(wxCalendarCtrl) -> calendar;
 gx_type(_) -> undefined.
 
 
@@ -140,7 +147,7 @@ is_top_level(GxType) ->
 %% More concise alternative to wxXXX:parent().
 %% Note that any object that is subclassed from
 %% wxObject will not appear on this list.
-%% Complete as of R13A
+%% Complete as of R13B
 super(wxAuiManager)          -> wxEvtHandler;
 super(wxAuiNotebook)         -> wxControl;
 super(wxBitmapButton)        -> wxButton;
@@ -225,34 +232,66 @@ super(wxMoveEvent)           -> wxEvent;
 super(wxMultiChoiceDialog)   -> wxDialog;
 super(wxNavigationKeyEvent)  -> wxEvent;
 super(wxNcPaintEvent)        -> wxEvent;
-
-%% COMPLETE TO HERE
 super(wxNotebook)            -> wxControl;
+super(wxNotebookEvent)       -> wxNotifyEvent;
+super(wxNotifyEvent)         -> wxCommandEvent;
 super(wxPaintDC)             -> wxWindowDC;
+super(wxPaintEvent)          -> wxEvent;
+super(wxPaletteChangedEvent) -> wxEvent;
 super(wxPanel)               -> wxWindow;
+super(wxPasswordEntryDialog) -> wxTextEntryDialog;
+super(wxPickerBase)          -> wxControl;
+super(wxPostScriptDC)        -> wxDC;
 super(wxPreviewCanvas)       -> wxScrolledWindow;
+super(wxPreviewControlBar)   -> wxPanel;
+super(wxPreviewFrame)        -> wxFrame;
+super(wxPrintDialog)         -> wxDialog;
 super(wxProgressDialog)      -> wxDialog;
+super(wxQueryNewPaletteEvent) -> wxEvent;
 super(wxRadioBox)            -> wxControlWithItems;
 super(wxRadioButton)         -> wxControl;
+super(wxSashEvent)           -> wxCommandEvent;
+super(wxSashLayoutWindow)    -> wxSashWindow;
+super(wxSashWindow)          -> wxWindow;
+super(wxScreenDC)            -> wxDC;
 super(wxScrollBar)           -> wxControl;
+super(wxScrollEvent)         -> wxCommandEvent;
+super(wxScrollWinEvent)      -> wxEvent;
 super(wxScrolledWindow)      -> wxPanel;
+super(wxSetCursorEvent)      -> wxEvent;
+super(wxShowEvent)           -> wxEvent;
+super(wxSingleChoiceDialog)  -> wxDialog;
+super(wxSizeEvent)           -> wxEvent;
 super(wxSlider)              -> wxControl;
+super(wxSpinButton)          -> wxControl;
 super(wxSpinCtrl)            -> wxControl;
+super(wxSpinEvent)           -> wxNotifyEvent;
 super(wxSplashScreen)        -> wxFrame;
+super(wxSplitterEvent)       -> wxNotifyEvent;
+super(wxSplitterWindow)      -> wxWindow;
 super(wxStaticBitmap)        -> wxControl;
 super(wxStaticBox)           -> wxControl;
+super(wxStaticBoxSizer)      -> wxBoxSizer;
 super(wxStaticLine)          -> wxControl;
 super(wxStaticText)          -> wxControl;
 super(wxStatusBar)           -> wxWindow;
+super(wxStdDialogButtonSizer) -> wxBoxSizer;
 super(wxStyledTextCtrl)      -> wxControl;
+super(wxStyledTextEvent)     -> wxCommandEvent;
+super(wxSysColourChangedEvent) -> wxEvent;
 super(wxTextCtrl)            -> wxControl;
+super(wxTextDataObject)      -> wxDataObject;
 super(wxTextEntryDialog)     -> wxDialog;
 super(wxToggleButton)        -> wxControl;
 super(wxToolBar)             -> wxControl;
 super(wxTopLevelWindow)      -> wxWindow;
 super(wxTreeCtrl)            -> wxControl;
+super(wxTreeEvent)           -> wxNotifyEvent;
+super(wxUpdateUIEvent)       -> wxCommandEvent;
 super(wxWindow)              -> wxEvtHandler;
+super(wxWindowCreateEvent)   -> wxCommandEvent;
 super(wxWindowDC)            -> wxDC;
+super(wxWindowDestroyEvent)  -> wxCommandEvent;
 super(_)                     -> undefined.
 
 
@@ -428,3 +467,27 @@ color(whitesmoke) -> color(16#f5f5f5);
 color(yellow) -> color(16#ffff00);
 color(yellowgreen) -> color(16#9acd32);
 color(_) -> undefined.
+
+% For removal later
+%%% DECOMMISSIONED!
+process(WxRef = #wx_ref{type=Module}, FType, {Key, Value}) ->
+	case gx_map:FType(Module) of
+	undefined -> {no_gx_map, {FType, Module, Key}};
+	FMap ->
+		[{Function, ArgDef}] = [Definition || {FKey, Definition} <- FMap, FKey =:= Key],
+		case ArgDef of
+		undefined -> 
+			{no_gx_map, {FType, Module, Key}};
+		_ ->
+			Args = map_args(ArgDef, [{wx_ref, WxRef}, {value, Value}]),
+			io:format("CALL ~p:~p(~p)~n", [Module, Function, Args]),
+			erlang:apply(Module, Function, Args)
+		end
+	end.
+%%% DECOMMISSIONED!
+map_args(ArgDef, Opts) ->
+	Pred = fun(Arg, Options) -> 
+		[Result] = [Value || {Key, Value} <- Options, Key =:= Arg],
+		Result
+	end,
+	[Pred(Arg, Opts) || Arg <- ArgDef].

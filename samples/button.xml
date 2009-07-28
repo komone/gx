@@ -11,7 +11,6 @@
 	<panel align="column" fill="true">
 		<button label="Hello, World!" border="5" align="center" onclick="on_message" />
 	</panel>
-	<textentry fill="width" onsubmit="on_message">Type here</textentry>
 	</panel>
 </window>
 </gxml>
