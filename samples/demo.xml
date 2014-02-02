@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<gx module="gx_demo">
-	<window pos="center" onload="splash">
-	</window>
-</gxml>

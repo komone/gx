@@ -1,0 +1,35 @@
+
+-behaviour(gen_server).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+	code_change/3, terminate/2]).
+
+%
+start_link() ->
+	gen_server:start_link(?MODULE, [], []).
+%
+stop() ->
+    ok = gen_server:cast(?MODULE, stop).
+
+%
+init(Args) ->
+	State = Args,
+	{ok, State}.
+	
+%
+handle_call(Message, From, State) ->
+	?TTY({handle_call, Message}),
+	{reply, ok, State}.
+%
+handle_cast(Message, State) ->
+	?TTY({handle_cast, Message}),
+    {noreply, State}.
+%
+handle_info(Message, State) ->
+	?TTY({handle_info, Message}),
+    {noreply, State}.
+%
+code_change(OldVsn, State, Extra) -> 
+	{ok, State}.	
+%
+terminate(Reason, State) ->
+	ok.

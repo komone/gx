@@ -1,5 +1,0 @@
-<?xml version="1.0"?>
-<gxml>
-	<dialog id="dlg" title="Sizer Problems" onload="init" onunload="on_close">
-	</dialog>
-</gxml>

@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<gxml id="ide" module="gx_ide">
+	<frame id="window" width="1200" height="800" center="true" pos="center" title="GX IDE" onload="on_init">
+		<menubar>
+			<menu label="File">
+				<item id="file_new" icon="newfile.gif" label="New" onselect="on_message"/>
+				<item label="Open..." icon="folder.gif" onselect="on_open"/>
+				<item id="file_save" icon="save.gif" label="Save" onselect="on_message"/>
+				<item label="Save As..." icon="save_as.gif" enabled="false" onselect="on_message"/>
+				<separator/>
+				<menu label="Export" icon="export_wiz.gif">
+					<item id="export_text" icon="file.gif" label="Text" onselect="on_message"/>
+					<item label="PDF" icon="pdf16.gif" onselect="on_message"/>
+					<item label="HTML" icon="blank.gif" onselect="on_message"/>
+				</menu>
+				<separator/>
+				<item id="exit" label="Exit" onselect="on_close"/>
+			</menu>	
+			<menu label="Edit">
+				<item id="edit_cut" icon="cut_edit.gif" label="Cut" onselect="on_message"/>
+				<item id="edit_copy" icon="copy_edit.gif" label="Copy" onselect="on_message"/>
+				<item id="edit_paste" icon="paste_edit.gif" label="Paste" onselect="on_message"/>
+			</menu>
+			<menu label="View"/>
+			<menu label="Help">
+				<item id="about" label="About" icon="help.gif" onselect="on_about"/>
+			</menu>
+		</menubar>
+		<toolbar>
+			<item icon="newfile.gif" label="New File" onselect="on_new"/>
+			<item id="toolbar_save" icon="save.gif" onselect="on_save"/>
+			<item icon="folder.gif" onselect="on_open"/>
+			<item icon="packagefolder.gif" onselect="on_path" />
+			<item icon="elements_obj.gif" onselect="on_color" />
+			<separator/> 
+			<item icon="font.gif" onselect="on_font" />
+		</toolbar>
+		<splitpane id="tree_split" gravity="0" sash="200">
+			<tabs id="app_tabs" fill="both">
+				<tab label="gx.app">
+					<!-- wxTree causes segmentation fault in R16B03-1, will be fixed in R17?
+					<filetree id="filetree" fill="both" path="../gx" onclick="on_tree" ondblclick="on_tree" onchange="on_tree">
+						<match type="directory" icon="folder.gif"/>
+						<match type="regular" icon="file.gif"/>
+						<match type="directory" path="ebin" icon="packagefolder.gif"/>
+						<match path="*.pdf" icon="pdf16.gif"/>
+						<match path="*.erl" icon="erl.gif"/>
+						<match path="*.beam" icon="beam.gif"/>
+					</filetree>
+				-->
+				</tab>
+			</tabs>
+			<splitpane id="main_split" gravity="100" sash="-150" layout="horizontal" ondblclick="on_message"><!-- width="600" fill="both" -->
+				<tabs id="editor_tabs" fill="both">
+					<menu label="Popup">
+						<item id="pu_save" label="Save" onselect="on_save"/>
+						<separator/>
+						<item id="pu_cut" label="Cut" onselect="on_message"/>
+						<item id="pu_copy" label="Copy" onselect="on_message"/>
+						<item id="pu_paste" label="Paste" onselect="on_message"/>
+						<separator/>
+						<item id="pu_select_all" label="Select All" onselect="on_message"/>
+					</menu>
+					<tab label="Untitled">
+						<editor id="editor" lexer="erlang" onchange="on_ackey"/>
+					</tab>
+				</tabs>
+				<tabs fill="both">
+					<tab label="Log">
+						<input id="log" enabled="false" fill="true" style="multi"/>
+					</tab>
+					<tab label="Console" selected="true">
+						<input id="console" fill="true" style="multi"/>
+					</tab>
+					<tab label="Command"/>
+				</tabs>
+			</splitpane>
+		</splitpane>
+		<statusbar label="Gx IDE"/>
+	</frame>
+	<dialog id="new_module" parent="window" title="New Module" pos="center" show="false">
+		<panel layout="row" width="400" color="white" fill="width">
+			<panel layout="column" fill="width">
+				<text border="5" font="bold">New Module</text>
+				<text border="10">Add a new module to the application.</text>
+			</panel>
+			<image align="right" path="welcome-banner.gif"/>
+		</panel>
+		<line height="2" fill="width"/>
+		<box label="Module Name" border="5" fill="both">
+			<panel layout="grid" rows="2" cols="2" fill="width">
+				<text border="7">Name:</text>
+				<input fill="width" border="3"/>
+				<text border="7">Behaviors:</text>
+				<checklist fill="width" border="3">
+					<item>gen_server</item>
+					<item>gen_fsm</item>
+					<item>gen_event</item>
+				</checklist>
+			</panel>
+		</box>
+		<line fill="width"/>
+		<panel layout="row" border="5" fill="none" align="right">
+			<button border="5" label="Cancel" onclick="on_cancel"/>
+			<button id="create_ok" border="5" onclick="on_message">OK</button>
+		</panel>
+	</dialog>
+	<dialog id="open_repo" parent="window" title="Open Repository" pos="center" show="false">
+		<panel layout="row" color="white" fill="width">
+			<panel layout="column" fill="width">
+				<text border="5" font="bold">Open Repository</text>
+				<text border="10">Add a repository to the workspace.</text>
+			</panel>
+			<image align="right" path="ear-wiz-banner.gif"/>
+		</panel>
+		<line height="2" fill="width"/>
+		<box label="Location" border="5" fill="both">
+			<panel layout="grid" rows="2" cols="2" fill="width">
+				<text border="7">Host:</text>
+				<combo fill="width" border="3"/>
+				<text border="7">Repository Path:</text>
+				<combo fill="width" border="3"/>
+			</panel>
+		</box>
+		<box label="Authentication" fill="width" border="5">
+			<panel layout="grid" rows="2" cols="2" fill="width">
+				<text border="7">Username:</text>
+				<combo fill="width" border="3"/>
+				<text border="7">Password:</text>
+				<input fill="width" border="3"/>
+			</panel>
+		</box>
+		<checkbox id="remember" border="15" fill="width" label="Remember Password" onselect="on_message"/>
+		<line height="2" fill="none"/>
+		<panel layout="row" border="5" fill="none" align="right">
+			<button id="ok" border="5" onclick="on_message">OK</button>
+			<button id="cancel" border="5" label="Cancel" onclick="on_cancel"/>
+		</panel>
+	</dialog>
+	<dialog id="libraries" parent="window" title="Setup OTP" pos="center" show="false">
+		<panel layout="row" width="400" color="white" fill="width">
+			<panel layout="column" fill="width">
+				<text border="5" font="bold">Workspace</text>
+				<text border="10">Set up libraries</text>
+			</panel>
+			<image align="right" path="ear-wiz-banner.gif"/>
+		</panel>
+		<line height="2" fill="width"/>
+		<box label="Location" border="5" fill="both">
+			<panel layout="grid" rows="2" cols="2" fill="width">
+				<text border="7">OTP:</text>
+				<picker type="directory" fill="width" border="3" onchange="on_message"/>
+				<text border="7">Projects:</text>
+				<combo fill="width" border="3"/>
+			</panel>
+		</box>
+		<line fill="both"/>
+		<panel layout="row" border="5" fill="none" align="right">
+			<button id="setup_cancel" border="5" label="Cancel" onclick="on_cancel"/>
+			<button id="setup_ok" border="5" onclick="on_message">OK</button>
+		</panel>
+	</dialog>
+</gxml>
