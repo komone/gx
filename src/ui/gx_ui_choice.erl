@@ -31,17 +31,17 @@ mapping_info() -> [
 	}].
 	
 %% 
-create(Gx, Parent, C = #choice{id = GxName, choices = Items, selected = Selected}) ->
+create(G, Parent, C = #choice{id = GxName, choices = Items, selected = Selected}) ->
 	% BUG? - missing define in wx {style, ?wxCB_DROPDOWN}
-	Ref = gx_wx:call(Gx, ?wxChoice_new_3, [Parent, -1, 
+	Ref = gx_wx:call(G, ?wxChoice_new_3, [Parent, -1, 
 		{options, [pos, size, choices, style, validator], [{choices, Items}] }]),
 	case in_range(Selected, 0, length(Items)) of
 	true ->
-		gx_wx:cast(Gx, ?wxControlWithItems_SetSelection, [Ref, Selected]);
+		gx_wx:cast(G, ?wxControlWithItems_SetSelection, [Ref, Selected]);
 	false ->
 		ignore
 	end,
-	ok = gx_ui_control:init(Gx, Parent, C#choice{ref = Ref}, mapping_info()),
+	ok = gx_ui_control:init(G, Parent, C#choice{ref = Ref}, mapping_info()),
 	#gx_ui{id = GxName, ref = Ref, parent = Parent}.
 
 %%

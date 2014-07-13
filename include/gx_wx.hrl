@@ -18,7 +18,7 @@
 % GX to WX Mapping Record
 -record(gx_wx, {type, attributes, module = ?MODULE, extends, wx_type, wx_parent, event_map}).
 
-% GX Registry Record
+% GX Component Record
 -record(gx_ui, {id, ref, parent, module = ?MODULE}).
 
 % GX Cache Record
@@ -26,11 +26,10 @@
 
 -define(DEFAULT_RESOURCE_PATH, <<"./priv/icons">>).
 
+-ifndef(wxEventListener_new_0).
 -define(wxEventListener_new_0, 98).
--define(wxEventListener_Destroy_1, 99).
+-endif.
 
--ifdef(DEBUG).
-  -define(VALIDATE(A, B, C, D), gx_debug:validate(A, B, C, D)).
--else.
-  -define(VALIDATE(A, B, C, D), ok).
+-ifndef(wxEventListener_Destroy_1).
+-define(wxEventListener_Destroy_1, 99).
 -endif.

@@ -132,10 +132,10 @@ init(Gx, Ref = #wx_ref{type = wxStyledTextCtrl}, erlang) ->
 	gx_wx:cast(Gx, ?wxStyledTextCtrl_SetKeyWords, [Ref, 2, ?PREPROCESSOR]),
 	gx_wx:cast(Gx, ?wxStyledTextCtrl_SetKeyWords, [Ref, 3, ?ATTRIBUTES]),
 %	?TTY({postlexer, read(Gx, Ref, lexer)}),
-	set_style(Gx, Ref, ?wxSTC_ERLANG_COMMENT, <<"face:Source Code Pro,size:11,fore:#7f7f7f">>),	
+	set_style(Gx, Ref, ?wxSTC_ERLANG_COMMENT, <<"face:SourceCodePro-Regular,size:11,fore:#7f7f7f">>),	
 	set_style(Gx, Ref, ?wxSTC_ERLANG_VARIABLE, <<"fore:#000080">>),
 	set_style(Gx, Ref, ?wxSTC_ERLANG_NUMBER, <<"fore:#007f00">>),	
-	set_style(Gx, Ref, ?wxSTC_ERLANG_KEYWORD, <<"face:Source Code Pro,size:11,bold,fore:#5f0033">>),	
+	set_style(Gx, Ref, ?wxSTC_ERLANG_KEYWORD, <<"face:SourceCodePro-Regular,size:11,bold,fore:#5f0033">>),	
 	set_style(Gx, Ref, ?wxSTC_ERLANG_STRING, <<"fore:#0f0fef">>),
 	set_style(Gx, Ref, ?wxSTC_ERLANG_OPERATOR, <<"fore:#000000">>),
 	set_style(Gx, Ref, ?wxSTC_ERLANG_ATOM, <<"fore:#000000">>),
@@ -143,7 +143,7 @@ init(Gx, Ref = #wx_ref{type = wxStyledTextCtrl}, erlang) ->
 	set_style(Gx, Ref, ?wxSTC_ERLANG_CHARACTER, <<"fore:#007f00">>),
 	set_style(Gx, Ref, ?wxSTC_ERLANG_MACRO, <<"fore:#7f007f">>),
 	set_style(Gx, Ref, ?wxSTC_ERLANG_RECORD, <<"fore:#007f00">>),
-	set_style(Gx, Ref, ?wxSTC_ERLANG_SEPARATOR, <<"face:Source Code Pro,size:11,bold,fore:#5f0033">>),
+	set_style(Gx, Ref, ?wxSTC_ERLANG_SEPARATOR, <<"face:SourceCodePro-Regular,size:11,bold,fore:#5f0033">>),
 	set_style(Gx, Ref, ?wxSTC_ERLANG_NODE_NAME, <<"fore:#007f7f">>),
 	set_style(Gx, Ref, 14, <<"face:Source Code Pro,size:11,italic,fore:#7f7f7f">>),
 	set_style(Gx, Ref, 15, <<"face:Source Code Pro,size:14,italic,fore:#7f7f7f">>),
@@ -155,7 +155,7 @@ init(Gx, Ref = #wx_ref{type = wxStyledTextCtrl}, erlang) ->
 	set_style(Gx, Ref, 21, <<"fore:#007f7f">>),
 	set_style(Gx, Ref, 22, <<"fore:#00007f">>),
 	set_style(Gx, Ref, 23, <<"fore:#007f00">>),
-	set_style(Gx, Ref, 24, <<"face:Source Code Pro,size:11,bold,fore:#5f0033">>), % attributes
+	set_style(Gx, Ref, 24, <<"face:SourceCodePro-Regular,size:11,bold,fore:#5f0033">>), % attributes
 	{ok, erlang};
 init(_, _, _) ->
 	{ok, none}.

@@ -1,4 +1,4 @@
-%% Copyright 2010-2011 Steve Davis <steve@simulacity.com>
+%% Copyright 2010-2014 Steve Davis <steve@simulacity.com>
 %
 % Licensed under the Apache License, Version 2.0 (the "License");
 % you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ mapping_info() -> [
 
 %%
 create(Gx, Parent, L = #list{id = GxName, size = _Size, choices = Items, selected = Selected}) ->
-	Ref = gx_wx:call(Gx, ?wxListBox_new_3, 
-		[Parent, -1, {options, [pos, size, choices, style, validator], [{choices, Items}]}]),
+	Opts = {options, [pos, size, choices, style, validator], [{choices, Items}]},
+	Ref = gx_wx:call(Gx, ?wxListBox_new_3, [Parent, -1, Opts]),
 	case in_range(Selected, 0, length(Items)) of
 	true ->
 		gx_wx:cast(Gx, ?wxControlWithItems_SetSelection, [Ref, Selected]);
@@ -54,5 +54,6 @@ read(G, Ref, Key) ->
 config(G, Ref, Key, Value) ->
 	gx_ui_controlwithitems:config(G, Ref, Key, Value).
 
+%
 in_range(Selected, Min, Max) ->
 	is_integer(Selected) andalso Selected >= Min andalso Selected < Max.

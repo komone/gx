@@ -112,7 +112,7 @@ handle_cast(init_handler, State = #state{context = Gx, callback = Module, user_s
 	{noreply, State};
 handle_cast({bind_event, Ref, Event}, State = #state{context = Gx}) ->
 %	?TTY({bind, Gx, Ref, Event}),
-	ok = gx_event:bind(Gx, Ref, Event),
+	{ok, #wx_ref{}} = gx_event:bind(Gx, Ref, Event),
 	{noreply, State};
 handle_cast(stop, State) ->
 	{stop, normal, State};

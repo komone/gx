@@ -1,18 +1,21 @@
 {application, gx,
  [{description, "GS-Style Interface to wxErlang"},
-  {vsn, "1.0"},
+  {vsn, "0.4.0"},
   {modules, [
   	gx,
+    gx_cache,
+    gx_driver,
+    gx_event,
     gx_srv,
-  	gx_cache,
   	gx_runner,
-  	gx_util,
+  	gx_ui,
+    gx_wx,
   	gx_xml
   ]},
   %% Maybe never: {mod, {gx_app, []}},
   {registered, []},
   {env, [
-  	{resources, "priv/gx/icons"}
+  	{resources, "priv/icons"}
   ]},
-  {applications, [kernel, stdlib, wx]}
+  {applications, [kernel, stdlib]}
 ]}.

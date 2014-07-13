@@ -58,7 +58,7 @@ cast(#g{port = Port}, Operation, Args) ->
 	wxe_cast(Port, Operation, encode_args(Args)).
 
 %%
-bind_event(#g{port = Port, event_listener = #wx_ref{ref = EL, type = wxeEvtListener}}, #wx_ref{ref = Ref, type = Source}, Event, Data) ->
+bind_event(#g{port = Port}, #wx_ref{ref = Ref, type = Source}, Event, Data) ->
 	WinId = -1, % any
 	LastId = -1, % any
 	SkipFlag = 0, % false
@@ -67,7 +67,6 @@ bind_event(#g{port = Port, event_listener = #wx_ref{ref = EL, type = wxeEvtListe
 	Bin = list_to_binary([atom_to_list(Event)|[0]]),
 	Bin0 = list_to_binary([atom_to_list(Source)|[0]]),	
 	Args = <<
-		EL:32/unsigned-native, 
 		Ref:32/unsigned-native, 
 		WinId:32/unsigned-native, 
 		LastId:32/unsigned-native,

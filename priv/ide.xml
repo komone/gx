@@ -38,7 +38,6 @@
 		<splitpane id="tree_split" gravity="0" sash="200">
 			<tabs id="app_tabs" fill="both">
 				<tab label="gx.app">
-					<!-- wxTree causes segmentation fault in R16B03-1, will be fixed in R17?
 					<filetree id="filetree" fill="both" path="../gx" onclick="on_tree" ondblclick="on_tree" onchange="on_tree">
 						<match type="directory" icon="folder.gif"/>
 						<match type="regular" icon="file.gif"/>
@@ -47,7 +46,6 @@
 						<match path="*.erl" icon="erl.gif"/>
 						<match path="*.beam" icon="beam.gif"/>
 					</filetree>
-				-->
 				</tab>
 			</tabs>
 			<splitpane id="main_split" gravity="100" sash="-150" layout="horizontal" ondblclick="on_message"><!-- width="600" fill="both" -->

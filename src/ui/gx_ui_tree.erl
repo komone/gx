@@ -74,9 +74,8 @@ create_children(Gx, Parent, TargetId, [I = #treeitem{label = Label, icon = Icon,
 	undefined ->
 		Opts = []
 	end,
-	ItemId = gx_wx:call(Gx, ?wxTreeCtrl_AppendItem, [Parent, 0, TargetId, Label, 
-		{options, [image, selectedImage, data], Opts}]), 
-	%?TTY({append, Parent, TargetId, ItemId}),
+	Args = [Parent, 0, {long, TargetId}, Label, {options, [image, selectedImage, data], Opts}],
+	ItemId = gx_wx:call(Gx, ?wxTreeCtrl_AppendItem, Args), 
 	gx_cache:register(Gx, ItemId, {TargetId, Data}, Parent),
 	Kids = create_children(Gx, Parent, ItemId, Children, []),	
 	create_children(Gx, Parent, TargetId, T, [I#treeitem{ref = ItemId, content = Kids}|Acc]);

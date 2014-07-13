@@ -17,9 +17,9 @@
 -include("gx.hrl").
 -include("gx_wx.hrl").
 
--export([connect/0, release/1, version/0]).
+-export([connect/0, release/1]).
 %% TEMP?
--export([users/0, get_cache/0, kill/0]).
+-export([version/0, users/0, get_cache/0, kill/0]).
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -43,13 +43,12 @@ connect(Pid) when is_pid(Pid) ->
 	wx_port_initiated ->
 		ok 
 	end,
-	EventListener = gx_event:add_listener(#g{port = Port}),
-	Gx = #g{port = Port, event_listener = EventListener},
+	Gx = #g{port = Port},
 	{ok, StaticCache} = gen_server:call(?MODULE, gx_cache, ?TIMEOUT),
 	{ok, Gx, StaticCache}.
+
 %%
 release(Gx = #g{port = Port}) ->
-	ok = gx_event:remove_listener(Gx),
 	true = port_close(Port),
 	case whereis(?MODULE) of
 	undefined ->
@@ -57,7 +56,8 @@ release(Gx = #g{port = Port}) ->
 	_ ->
 		gen_server:cast(?MODULE, stop)
 	end.
-%%
+
+%% TEMP?
 version() ->
 	gen_server:call(?MODULE, wx_version, ?TIMEOUT).
 
@@ -136,7 +136,6 @@ terminate(normal, #state{port = Port}) ->
 	?TTY({stopped, Port}),
 	%erl_ddll:unload_driver(?DRIVER),
 	ok.
-	
 %
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

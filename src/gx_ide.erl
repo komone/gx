@@ -167,7 +167,7 @@ on_tree(Event = #gx{data = Data}, State) ->
 			Editable = false,
 			Bin0 = to_hex(Bin)
 		end,
-		Label = path:filename(File),
+		Label = path:name(File),
 		gx:config(editor, editable, true),
 		gx:config(editor, text, Bin0),
 		gx:config(editor, editable, Editable),

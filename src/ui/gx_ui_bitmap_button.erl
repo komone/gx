@@ -1,4 +1,4 @@
-%% Copyright 2010-2011 Steve Davis <steve@simulacity.com>
+%% Copyright 2010-2014 Steve Davis <steve@simulacity.com>
 %
 % Licensed under the Apache License, Version 2.0 (the "License");
 % you may not use this file except in compliance with the License.
@@ -13,6 +13,18 @@
 % limitations under the License.
 
 -module(gx_ui_bitmap_button).
+%-define(wxBitmapButton_new_4, 1475).
+%-define(wxBitmapButton_new_0, 1476).
+%-define(wxBitmapButton_Create, 1477).
+%-define(wxBitmapButton_GetBitmapDisabled, 1478).
+%-define(wxBitmapButton_GetBitmapFocus, 1480).
+%-define(wxBitmapButton_GetBitmapLabel, 1482).
+%-define(wxBitmapButton_GetBitmapSelected, 1484).
+%-define(wxBitmapButton_SetBitmapDisabled, 1486).
+%-define(wxBitmapButton_SetBitmapFocus, 1487).
+%-define(wxBitmapButton_SetBitmapLabel, 1488).
+%-define(wxBitmapButton_SetBitmapSelected, 1489).
+%-define(wxBitmapButton_destroy, 1490).
 
 -include("gx.hrl").
 -include("gx_wx.hrl").
@@ -30,23 +42,23 @@ mapping_info() -> [
 	}].
 
 %
-create(Gx, Parent, B = #bitmapbutton{id = GxName, label = _Label, icon = Icon}) ->
-	WxBitmap = gx_ui:get_image(Icon),
-	Ref = wxBitmapButton:new(Parent, -1, WxBitmap, []),
-	ok = gx_ui_control:init(Gx, Parent, B#bitmapbutton{ref = Ref}, mapping_info()),
+create(G, Parent, B = #bitmapbutton{id = GxName, label = _Label, icon = Icon}) ->
+	{ok, WxBitmap} = gx_cache:load_image(G, Icon),
+	Opts = {options, [pos, size, style, validator], []},
+	Ref = #wx_ref{} = gx_wx:call(G, ?wxBitmapButton_new_4, Parent, -1, WxBitmap, Opts),
+	ok = gx_ui_control:init(G, Parent, B#bitmapbutton{ref = Ref}, mapping_info()),
 	#gx_ui{id = GxName, ref = Ref, parent = Parent}.
 
-read(Gx, Ref, icon) ->
-	gx_wx:call(Gx, ?wxBitmapButton_GetBitmapLabel, [Ref]);
-read(Gx, Ref, disabled_icon) ->
-	gx_wx:call(Gx, ?wxBitmapButton_GetBitmapDisabled, [Ref]);
-read(Gx, Ref, focused_icon) ->
-	gx_wx:call(Gx, ?wxBitmapButton_GetBitmapFocus, [Ref]);
-read(Gx, Ref, selected_icon) ->
-	gx_wx:call(Gx, ?wxBitmapButton_GetBitmapSelected, [Ref]);
-read(Gx, Ref, Key) ->
-	gx_ui_button:read(Gx, Ref, Key).
+read(G, Ref, icon) ->
+	gx_wx:call(G, ?wxBitmapButton_GetBitmapLabel, [Ref]);
+read(G, Ref, disabled_icon) ->
+	gx_wx:call(G, ?wxBitmapButton_GetBitmapDisabled, [Ref]);
+read(G, Ref, focused_icon) ->
+	gx_wx:call(G, ?wxBitmapButton_GetBitmapFocus, [Ref]);
+read(G, Ref, selected_icon) ->
+	gx_wx:call(G, ?wxBitmapButton_GetBitmapSelected, [Ref]);
+read(G, Ref, Key) ->
+	gx_ui_button:read(G, Ref, Key).
 
-config(Gx, Ref, K, V) ->
-	gx_ui_button:config(Gx, Ref, K, V).
-
+config(G, Ref, K, V) ->
+	gx_ui_button:config(G, Ref, K, V).
